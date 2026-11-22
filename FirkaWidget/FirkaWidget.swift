@@ -16,10 +16,8 @@ struct Provider: TimelineProvider {
     }
 
     private func entry(at now: Date, _ all: [WidgetLesson]) -> Entry {
-        guard let h = all.headline(at: now) else { return Entry(date: now, current: nil, upcoming: []) }
-        let first = all[h.index]
-        let later = all[(h.index + 1)...].filter { !$0.cancelled && $0.start > now && $0.start.startOfDay == first.start.startOfDay }
-        return Entry(date: now, current: h.inProgress ? first : nil, upcoming: h.inProgress ? later : [first] + later)
+        let v = all.widgetView(at: now)
+        return Entry(date: now, current: v.current, upcoming: v.upcoming)
     }
 
     func placeholder(in context: Context) -> Entry {
@@ -37,7 +35,7 @@ struct Provider: TimelineProvider {
         let all = lessons()
         let now = Date()
         // A new entry at every lesson start/end so the widget flips without the app running.
-        let changes = Set(all.flatMap { [$0.start, $0.end] }).filter { $0 > now }.sorted().prefix(40)
+        let changes = all.changeTimes(after: now).prefix(40)
         let entries = [entry(at: now, all)] + changes.map { entry(at: $0, all) }
         completion(Timeline(entries: entries, policy: .after(changes.last ?? now.addingTimeInterval(3600 * 6))))
     }

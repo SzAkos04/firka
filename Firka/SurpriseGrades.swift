@@ -103,11 +103,5 @@ private struct NewGradeRow: View {
         .accessibilityAction { if hidden { onReveal() } }
     }
 
-    private var details: String {
-        let mode = grade.mod?.leiras
-        // KRÉTA sometimes puts the weight in the mode name already ("Szóbeli felelet 50%")
-        let weight = grade.sulySzazalekErteke.flatMap { $0 == 100 || mode?.contains("\($0)%") == true ? nil : "\($0)%" }
-        return [grade.tema, mode, weight]
-            .compactMap { $0 }.joined(separator: " · ")
-    }
+    private var details: String { grade.details }
 }

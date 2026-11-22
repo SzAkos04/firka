@@ -36,6 +36,19 @@ extension Array where Element == WidgetLesson {
         guard let i = firstIndex(where: { !$0.cancelled && $0.end > now }) else { return nil }
         return (i, self[i].start <= now)
     }
+
+    /// What the widget shows at `now`: the lesson in progress, and the rest of that day still to come.
+    func widgetView(at now: Date) -> (current: WidgetLesson?, upcoming: [WidgetLesson]) {
+        guard let h = headline(at: now) else { return (nil, []) }
+        let first = self[h.index]
+        let later = self[(h.index + 1)...].filter { !$0.cancelled && $0.start > now && $0.start.startOfDay == first.start.startOfDay }
+        return h.inProgress ? (first, Array(later)) : (nil, [first] + later)
+    }
+
+    /// Every future lesson start and end, sorted: when the widget and the Live Activity change.
+    func changeTimes(after now: Date) -> [Date] {
+        Set(flatMap { [$0.start, $0.end] }).filter { $0 > now }.sorted()
+    }
 }
 
 extension Color {

@@ -119,7 +119,7 @@ struct HTMLText: View {
 
     static func render(_ html: String) -> AttributedString? {
         // no images/scripts: the HTML importer would load remote resources synchronously on the main thread
-        let safe = html.replacingOccurrences(of: "<(img|script|link|iframe)[^>]*>(</script>)?", with: "", options: [.regularExpression, .caseInsensitive])
+        let safe = html.replacingOccurrences(of: String.codeBlocks + "|<(img|link|iframe)[^>]*>", with: "", options: [.regularExpression, .caseInsensitive])
         let styled = "<style>body{font-family:-apple-system;font-size:17px}</style>" + safe
         guard let ns = try? NSMutableAttributedString(
             data: Data(styled.utf8),
@@ -134,8 +134,12 @@ struct HTMLText: View {
 }
 
 extension String {
+    /// `<script>`/`<style>` blocks with their content: code, not text.
+    static let codeBlocks = "<(script|style)[^>]*>[\\s\\S]*?</(script|style)\\s*>"
+
     var strippingTags: String {
-        replacingOccurrences(of: "<br\\s*/?>|</(p|li|div|h\\d)>", with: "\n", options: [.regularExpression, .caseInsensitive])
+        replacingOccurrences(of: Self.codeBlocks, with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "<br\\s*/?>|</(p|li|div|h\\d)>", with: "\n", options: [.regularExpression, .caseInsensitive])
             .replacingOccurrences(of: "<[^>]+>|<[^>]*$", with: "", options: .regularExpression)  // also a tag cut off at the end
             .replacingOccurrences(of: "&nbsp;", with: " ")
             .replacingOccurrences(of: "&quot;", with: "\"")

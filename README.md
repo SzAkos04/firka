@@ -58,11 +58,15 @@ What it needs: the Mac awake and logged in, the iPhone on the same Wi-Fi (or on 
 
 ## Development
 
-- **Tests:** press ⌘U in Xcode, or run everything that should pass before a release (unit tests in the simulator, then a Release build for iPhone):
+- **Tests:** press ⌘U in Xcode, or run everything that should pass before a release (unit and UI tests in the simulator, then a Release build for iPhone):
   ```bash
   scripts/test.sh
   ```
-  The tests live in `FirkaTests/` (Swift Testing): KRÉTA JSON decoding, averages and rounding, the report card, surprise-grade notes, hidden lessons, the Monday-midnight week edge case, the widget/Live Activity headline, and which changes trigger notifications. Logic that needs a test goes in a function without UI (see `Notifier.changes`, `Ora.keep`, `headline(at:)`), so it can be tested.
+  Two layers, both run by `scripts/test.sh` (`FAST=1` runs the unit tests only):
+  - `FirkaTests/` (Swift Testing, unit): the logic behind every screen, the widget and the Live Activity (`TimetableNav`, `ScreenLogic.swift`, `Notifier.changes`, `Grades.swift` …), and the KRÉTA client against a fake server (`Stub.swift`: a `URLProtocol` that answers every `*.e-kreta.hu` request, so URLs, headers, token renewal, error handling and the whole sync are tested without the internet). Tests that share the keychain, the cache file or UserDefaults sit in the serialized `Global` suite and restore what they change.
+  - `FirkaUITests/` (XCUITest): the real app in demo mode (`FIRKA_DEMO=1`), tapping through the tabs, the week strip, surprise grades, hiding a lesson, messages and logout.
+
+  Test-driven: a change starts with a failing test, a bug with a test that reproduces it (see CLAUDE.md).
 - Debug builds have a **Demo mode** button on the login screen with fake data, so you can try the app without a KRÉTA account.
 - Watch the app's log (errors, refresh summaries, class-average fetch) while it runs in the simulator:
   ```bash
@@ -75,8 +79,8 @@ What it needs: the Mac awake and logged in, the iPhone on the same Wi-Fi (or on 
   ```bash
   SIMCTL_CHILD_FIRKA_HIDE_NEWEST=3 xcrun simctl launch booted <APP_ID>
   ```
-  `FIRKA_ACTIVITY_DEMO=1` (or `=break`) shows the Live Activity with a made-up day around now, during a lesson (or a break). `FIRKA_FORCE_REFRESH` treats the access token as expired, so the next sync has to renew it. `FIRKA_HIDE_NEWEST=N` hides the N newest grades again as surprise grades. `FIRKA_PROBE=1` saves raw KRÉTA responses into the app's Documents/probe folder (for looking at real payloads). None of these exist in Release builds.
-- Files in `Firka/`, `FirkaWidget/`, `Shared/` and `FirkaTests/` are picked up by Xcode automatically. `Shared/` is compiled into both the app and the widget.
+  `FIRKA_ACTIVITY_DEMO=1` (or `=break`) shows the Live Activity with a made-up day around now, during a lesson (or a break). `FIRKA_FORCE_REFRESH` treats the access token as expired, so the next sync has to renew it. `FIRKA_HIDE_NEWEST=N` hides the N newest grades again as surprise grades. `FIRKA_DEMO=1` starts over in demo mode (the UI tests use it). `FIRKA_PROBE=1` saves raw KRÉTA responses into the app's Documents/probe folder (for looking at real payloads). None of these exist in Release builds.
+- Files in `Firka/`, `FirkaWidget/`, `Shared/`, `FirkaTests/` and `FirkaUITests/` are picked up by Xcode automatically. `Shared/` is compiled into both the app and the widget.
 - Settings keys are all in `Firka/Prefs.swift`.
 
 ## Release checklist

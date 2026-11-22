@@ -5,12 +5,16 @@ struct FirkaApp: App {
     @State private var store = AppStore()
     @Environment(\.scenePhase) private var phase
 
+    /// Unit tests run inside the app: it stays idle so it doesn't sync or touch the data the tests use.
+    static let underUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
     init() { Background.register() }
 
     var body: some Scene {
         WindowGroup {
             Group {
-                if store.loggedIn { MainTabs() } else { LoginScreen() }
+                if Self.underUnitTests { Color.clear }
+                else if store.loggedIn { MainTabs() } else { LoginScreen() }
             }
             .environment(store)
             .fullScreenCover(isPresented: Binding(get: { store.needsReauth }, set: { store.needsReauth = $0 })) {
@@ -18,6 +22,7 @@ struct FirkaApp: App {
             }
         }
         .onChange(of: phase, initial: true) { _, p in
+            guard !Self.underUnitTests else { return }
             if p == .active, store.loggedIn { Task { await store.refreshIfStale() } }
             if p == .background, store.loggedIn, !store.isDemo { Background.schedule() }
         }

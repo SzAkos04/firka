@@ -93,7 +93,7 @@ struct Snapshot: Codable {
                                   updated: now)
     }
 
-    private static func soft<T>(_ name: String, _ fallback: [T]?, _ op: () async throws -> [T]) async throws -> [T] {
+    static func soft<T>(_ name: String, _ fallback: [T]?, _ op: () async throws -> [T]) async throws -> [T] {
         do {
             return try await op()
         } catch KretaError.reauth {
@@ -107,7 +107,7 @@ struct Snapshot: Codable {
     }
 
     /// Optional extra: a failure here (or a school that hides class averages) must not fail the sync.
-    private static func classAverages(_ c: KretaClient) async -> [String: Double]? {
+    static func classAverages(_ c: KretaClient) async -> [String: Double]? {
         do {
             let groups: [OsztalyCsoport] = try await c.get("OsztalyCsoportok")
             let tasks = Set(groups.filter { $0.isAktiv != false }
@@ -174,9 +174,12 @@ final class AppStore {
         didSet { UserDefaults.standard.set(seenGrades.map(Array.init), forKey: Pref.seenGrades) }
     }
 
-    var hiddenGrades: [Ertekeles] {
-        guard surpriseGrades, let seen = seenGrades else { return [] }
-        return data.grades.filter { !seen.contains($0.uid) }.sorted { $0.keszitesDatuma < $1.keszitesDatuma }
+    var hiddenGrades: [Ertekeles] { Self.surprises(data.grades, seen: seenGrades, on: surpriseGrades) }
+
+    /// The grades still to flip, oldest first. `seen` is nil before the first sync: nothing is a surprise then.
+    nonisolated static func surprises(_ grades: [Ertekeles], seen: Set<String>?, on: Bool) -> [Ertekeles] {
+        guard on, let seen else { return [] }
+        return grades.filter { !seen.contains($0.uid) }.sorted { $0.keszitesDatuma < $1.keszitesDatuma }
     }
 
     var visibleGrades: [Ertekeles] {
@@ -215,14 +218,24 @@ final class AppStore {
         // Dev hooks, set via `SIMCTL_CHILD_<name>=… xcrun simctl launch`:
         //   FIRKA_FORCE_REFRESH=1  pretend the access token expired (tests token renewal)
         //   FIRKA_HIDE_NEWEST=N    re-hide the N newest grades (tests surprise grades)
+        //   FIRKA_DEMO=1           start over in demo mode (UI tests)
         let env = ProcessInfo.processInfo.environment
         if env["FIRKA_FORCE_REFRESH"] != nil { token?.expiry = .distantPast }
+        if env["FIRKA_DEMO"] != nil {
+            Token.delete()
+            token = nil
+            HiddenLessons.shared.rules = []
+            Renames.shared.subjects = [:]
+            Renames.shared.teachers = [:]
+            UserDefaults.standard.removeObject(forKey: Pref.surpriseGrades)
+        }
         #endif
         client = token.map(KretaClient.init)
         loggedIn = token != nil || UserDefaults.standard.bool(forKey: Pref.demo)
         seedSeenGrades()
         #if DEBUG
         if env["FIRKA_PROBE"] != nil, let client { Task { await DebugProbe.run(client) } }
+        if env["FIRKA_DEMO"] != nil { startDemo() }
         if let n = env["FIRKA_HIDE_NEWEST"].flatMap(Int.init) {
             seenGrades = Set(data.grades.sorted { $0.keszitesDatuma < $1.keszitesDatuma }.dropLast(n).map(\.uid))
         }
@@ -230,8 +243,14 @@ final class AppStore {
     }
 
     func login(code: String, pkce: PKCE) async throws {
+        await signedIn(try await Kreta.exchange(code: code, verifier: pkce.verifier))
+        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+        Background.schedule()
+    }
+
+    /// After a successful login: keep the token and sync.
+    func signedIn(_ token: Token) async {
         let previous = Token.load()
-        let token = try await Kreta.exchange(code: code, verifier: pkce.verifier)
         if previous?.iss != token.iss || previous?.username != token.username {
             clearAccountData()  // another account (or none before): don't mix data or "seen" grades
         }
@@ -241,8 +260,6 @@ final class AppStore {
         needsReauth = false
         loggedIn = true
         await refresh()
-        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
-        Background.schedule()
     }
 
     /// After hiding/renaming lessons: the widget and the Live Activity read the saved data.

@@ -6,18 +6,17 @@ struct AbsencesView: View {
 
     var body: some View {
         let all = store.data.absences.sorted { $0.datum > $1.datum }
-        let absences = all.filter { !$0.isLate }
-        let lates = all.filter(\.isLate)
+        let stats = AbsenceStats(all)
         let byDay = Dictionary(grouping: all) { $0.datum.startOfDay }.sorted { $0.key > $1.key }
 
         NavigationStack {
             List {
                 Section {
                     HStack(spacing: 8) {
-                        Stat(value: absences.filter { $0.igazolasAllapota == "Igazolt" }.count, label: "Igazolt", color: .green)
-                        Stat(value: absences.filter { $0.igazolasAllapota == "Igazolatlan" }.count, label: "Igazolatlan", color: .red)
-                        Stat(value: absences.filter { $0.igazolasAllapota != "Igazolt" && $0.igazolasAllapota != "Igazolatlan" }.count, label: "Igazolandó", color: .orange)
-                        Stat(value: lates.reduce(0) { $0 + ($1.kesesPercben ?? 0) }, label: "Késés, perc", color: nil)
+                        Stat(value: stats.justified, label: "Igazolt", color: .green)
+                        Stat(value: stats.unjustified, label: "Igazolatlan", color: .red)
+                        Stat(value: stats.pending, label: "Igazolandó", color: .orange)
+                        Stat(value: stats.lateMinutes, label: "Késés, perc", color: nil)
                     }
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
@@ -118,8 +117,7 @@ struct HomeworkList: View {
 
     var body: some View {
         let today = Date().startOfDay
-        let upcoming = store.data.homework.filter { $0.hataridoDatuma >= today }.sorted { $0.hataridoDatuma < $1.hataridoDatuma }
-        let past = store.data.homework.filter { $0.hataridoDatuma < today }.sorted { $0.hataridoDatuma > $1.hataridoDatuma }
+        let (upcoming, past) = HomeLogic.split(store.data.homework, today: today, date: \.hataridoDatuma)
         List {
             if !upcoming.isEmpty { Section("Közelgő") { ForEach(upcoming) { h in NavigationLink(value: h) { HomeworkRow(hw: h) } } } }
             if !past.isEmpty { Section("Korábbi") { ForEach(past) { h in NavigationLink(value: h) { HomeworkRow(hw: h) } } } }
@@ -135,8 +133,7 @@ struct TestsList: View {
 
     var body: some View {
         let today = Date().startOfDay
-        let upcoming = store.data.tests.filter { $0.datum >= today }.sorted { $0.datum < $1.datum }
-        let past = store.data.tests.filter { $0.datum < today }.sorted { $0.datum > $1.datum }
+        let (upcoming, past) = HomeLogic.split(store.data.tests, today: today, date: \.datum)
         List {
             if !upcoming.isEmpty { Section("Közelgő") { ForEach(upcoming) { t in NavigationLink(value: t) { TestRow(test: t) } } } }
             if !past.isEmpty { Section("Korábbi") { ForEach(past) { t in NavigationLink(value: t) { TestRow(test: t) } } } }
@@ -266,7 +263,8 @@ struct SettingsView: View {
             }
 
             Section("Névjegy") {
-                LabeledContent("Verzió", value: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
+                // the build number is the install time (scripts/renew-on-iphone.sh), so it shows which build is on the phone
+                LabeledContent("Verzió", value: "\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""))")
                 Link("Az eredeti Firka (QwIT Development)", destination: URL(string: "https://github.com/QwIT-Development/firka")!)
                 Text("Ez a Firka iOS-re átírt, nem hivatalos változata. Licenc: CC BY-NC-SA 4.0. Nem áll kapcsolatban az eKRÉTA Informatikai Zrt.-vel.")
                     .font(.caption).foregroundStyle(.secondary)

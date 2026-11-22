@@ -27,9 +27,7 @@ enum LessonLive {
         let content = ActivityContent(state: state, staleDate: state.staleDate)
         if let a = running.first(where: { Calendar.hu.isDate($0.attributes.day, inSameDayAs: now) }) {
             if !a.content.state.sameContent(as: state) { await a.update(content) }
-        } else if canStart, ActivityAuthorizationInfo().areActivitiesEnabled,
-                  // iOS ends activities after 8 hours, so don't start long before the first lesson
-                  let first = lessons.first(where: { !$0.cancelled }), first.start.timeIntervalSince(now) < 2 * 3600 {
+        } else if canStart, ActivityAuthorizationInfo().areActivitiesEnabled, shouldStart(lessons, now: now) {
             do {
                 let a = try Activity.request(attributes: LessonActivityAttributes(day: now.startOfDay), content: content)
                 log.info("live activity started: \(a.id, privacy: .public)")
@@ -39,13 +37,19 @@ enum LessonLive {
         }
     }
 
+    /// iOS ends activities after 8 hours, so don't start long before the first held lesson.
+    static func shouldStart(_ today: [WidgetLesson], now: Date) -> Bool {
+        guard let first = today.first(where: { !$0.cancelled }) else { return false }
+        return first.start.timeIntervalSince(now) < 2 * 3600
+    }
+
     static func endAll() async {
         for a in Activity<LessonActivityAttributes>.activities { await a.end(nil, dismissalPolicy: .immediate) }
     }
 
     /// The next moment the headline changes (a lesson starts or ends), for scheduling a background refresh.
     static func nextChange(_ all: [WidgetLesson], after now: Date = Date()) -> Date? {
-        all.flatMap { [$0.start, $0.end] }.filter { $0 > now }.min()
+        all.changeTimes(after: now).first
     }
 
     #if DEBUG

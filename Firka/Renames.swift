@@ -42,12 +42,7 @@ struct RenameView: View {
 
     var body: some View {
         @Bindable var r = Renames.shared
-        let d = store.data
-        let subjects = Set(d.grades.map(\.tantargy.nev) + d.lessons.compactMap { $0.tantargy?.nev } + d.tests.map(\.tantargy.nev)
-                           + d.homework.map(\.tantargy.nev) + d.absences.map(\.tantargy.nev)).map(\.capitalizedFirst)
-        let teachers = Set(d.lessons.flatMap { [$0.tanarNeve, $0.helyettesTanarNeve] }
-                           + d.grades.map(\.ertekeloTanarNeve) + d.tests.map(\.rogzitoTanarNeve)
-                           + d.homework.map(\.rogzitoTanarNeve) + d.notes.map(\.keszitoTanarNeve)).compactMap { $0 }
+        let (subjects, teachers) = Renames.names(in: store.data)
         Form {
             Section {
                 ForEach(filtered(subjects), id: \.self) { s in RenameRow(original: s, custom: $r.subjects[s]) }
@@ -66,9 +61,8 @@ struct RenameView: View {
         .onDisappear { store.lessonsChanged() }
     }
 
-    private func filtered(_ names: some Collection<String>) -> [String] {
-        let all = names.sorted { $0.compare($1, locale: Locale(identifier: "hu_HU")) == .orderedAscending }
-        return search.isEmpty ? all : all.filter { $0.localizedCaseInsensitiveContains(search) || (Renames.shared.subjects[$0] ?? Renames.shared.teachers[$0] ?? "").localizedCaseInsensitiveContains(search) }
+    private func filtered(_ names: [String]) -> [String] {
+        names.filter { Renames.matches($0, search: search, custom: Renames.shared.subjects[$0] ?? Renames.shared.teachers[$0]) }
     }
 }
 

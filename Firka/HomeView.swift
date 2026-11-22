@@ -18,25 +18,15 @@ struct HomeView: View {
     }
 
     private var greeting: String {
-        // Hungarian order: family name first, so the first given name is the 2nd word
-        let parts = store.data.studentName.split(separator: " ").map(String.init)
-        let first = parts.count >= 2 ? parts[1] : parts.first ?? ""
-        let h = Calendar.hu.component(.hour, from: Date())
-        let hello = h < 9 ? "Jó reggelt" : h < 18 ? "Szia" : "Jó estét"
-        return first.isEmpty ? "Firka" : "\(hello), \(first)!"
+        HomeLogic.greeting(name: store.data.studentName, hour: Calendar.hu.component(.hour, from: Date()))
     }
 
     @ViewBuilder
     private func list(now: Date) -> some View {
         let data = store.data
-        let lessons = data.lessons.filter { !$0.isEvent && !HiddenLessons.shared.isHidden($0) }.sorted { $0.kezdetIdopont < $1.kezdetIdopont }
-        let current = lessons.first { $0.kezdetIdopont <= now && $0.vegIdopont > now && !$0.isCancelled }
-        let next = lessons.first { $0.kezdetIdopont > now && !$0.isCancelled }
-        // Today's lessons if any are left, otherwise the next school day.
-        let day = (lessons.first { $0.vegIdopont > now }?.kezdetIdopont ?? now).startOfDay
-        let dayLessons = lessons.filter { $0.kezdetIdopont.startOfDay == day }
-        let tests = data.tests.filter { $0.datum >= now.startOfDay }.sorted { $0.datum < $1.datum }
-        let homework = data.homework.filter { $0.hataridoDatuma >= now.startOfDay }.sorted { $0.hataridoDatuma < $1.hataridoDatuma }
+        let (current, next, day, dayLessons) = HomeLogic.today(data.lessons, now: now, isHidden: HiddenLessons.shared.isHidden)
+        let tests = HomeLogic.split(data.tests, today: now.startOfDay, date: \.datum).upcoming
+        let homework = HomeLogic.split(data.homework, today: now.startOfDay, date: \.hataridoDatuma).upcoming
         let recent = store.visibleGrades.sorted { $0.keszitesDatuma > $1.keszitesDatuma }.prefix(5)
 
         List {

@@ -2,23 +2,20 @@ import SwiftUI
 
 struct TimetableView: View {
     @Environment(AppStore.self) private var store
-    @State private var week = TimetableView.initialDay().startOfWeek
-    @State private var day = TimetableView.initialDay()
+    @State private var week = TimetableNav.openingDay(today: Date().startOfDay, lessonDays: []).startOfWeek
+    @State private var day = TimetableNav.openingDay(today: Date().startOfDay, lessonDays: [])
     @State private var lessons: [Ora] = []
     @State private var loading = false
     @AppStorage(Pref.timetableMonth) private var monthMode = false
     @State private var showHidden = false
 
-    /// Today, or next Monday on weekends.
-    static func initialDay() -> Date {
-        let today = Date().startOfDay
-        let wd = Calendar.hu.component(.weekday, from: today)  // 1 = Sunday, 7 = Saturday
-        return wd == 7 ? today.adding(days: 2) : wd == 1 ? today.adding(days: 1) : today
-    }
+    /// Days with real lessons: the cached this/next week plus the loaded one.
+    private var lessonDays: Set<Date> { TimetableNav.lessonDays(store.data.lessons + lessons) }
+    private var days: [Date] { TimetableNav.days(week: week, lessonDays: lessonDays) }
 
-    private var days: [Date] {
-        let weekend = lessons.contains { Calendar.hu.isDateInWeekend($0.kezdetIdopont) }
-        return (0..<(weekend ? 7 : 5)).map { week.adding(days: $0) }
+    private func show(_ d: Date) {
+        week = TimetableNav.week(showing: d, lessonDays: lessonDays)
+        day = d
     }
 
     var body: some View {
@@ -47,31 +44,33 @@ struct TimetableView: View {
             VStack(spacing: 0) {
                 HStack {
                     Button { move(-7) } label: { Image(systemName: "chevron.left") }
+                        .accessibilityLabel("Előző hét").accessibilityIdentifier("previousWeek")
                     Spacer()
                     Text("\(week.hu("MMMd")) – \(week.adding(days: 6).hu("MMMd"))").font(.headline)
+                        .accessibilityIdentifier("weekTitle")
                     Spacer()
                     Button { move(7) } label: { Image(systemName: "chevron.right") }
+                        .accessibilityLabel("Következő hét").accessibilityIdentifier("nextWeek")
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 8)
 
-                HStack(spacing: 6) {
+                let testDays = Set(store.data.tests.map { $0.datum.startOfDay })
+                let today = Date().startOfDay
+                HStack(spacing: 0) {
+                    // Today isn't in this strip (weekend, or another week): a "ma" circle up front jumps to it.
+                    if TimetableNav.showsTodayCell(today: today, days: days) {
+                        DayButton(date: today, selected: day == today, today: true, hasTest: testDays.contains(today), caption: "ma") { show(today) }
+                            .accessibilityIdentifier("todayCell")
+                        .frame(width: 48)
+                        Rectangle().fill(.separator).frame(width: 0.5, height: 44).padding(.trailing, 4)
+                    }
                     ForEach(days, id: \.self) { d in
-                        let selected = d == day
-                        Button { day = d } label: {
-                            VStack(spacing: 2) {
-                                Text(d.hu("EEEEE")).font(.caption)  // H, K, Sz…
-                                Text(d.hu("d")).font(.headline)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                            .background(selected ? Color.accentColor : .clear, in: RoundedRectangle(cornerRadius: 10))
-                            .foregroundStyle(selected ? Color(.systemBackground) : d == Date().startOfDay ? Color.accentColor : .primary)
-                        }
-                        .buttonStyle(.plain)
+                        DayButton(date: d, selected: d == day, today: d == today, hasTest: testDays.contains(d)) { day = d }
                     }
                 }
                 .padding(.horizontal)
+                .padding(.bottom, 10)  // room under the test dots before the strip's edge
                 // swiping here changes the day; on the lesson rows it's the hide action
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: 30).onEnded { v in
@@ -82,7 +81,7 @@ struct TimetableView: View {
                 dayList
             }
             .toolbar {
-                Button("Ma") { week = Self.initialDay().startOfWeek; day = Self.initialDay() }
+                Button("Ma") { show(TimetableNav.openingDay(today: Date().startOfDay, lessonDays: lessonDays)) }
             }
             .task(id: week) { await load() }
             .onChange(of: store.data.updated) { Task { await load() } }
@@ -99,6 +98,7 @@ struct TimetableView: View {
             }
             ForEach(showHidden ? real : real.filter { !hidden.contains($0) }) { l in
                 NavigationLink(value: l) { LessonRow(lesson: l, active: l.kezdetIdopont <= Date() && l.vegIdopont > Date()) }
+                    .accessibilityIdentifier("lessonRow")
                     .opacity(hidden.contains(l) ? 0.45 : 1)
                     .hideLessonActions(l)
             }
@@ -119,12 +119,7 @@ struct TimetableView: View {
 
     /// Swipe to the next/previous school day, crossing weeks.
     private func step(_ dir: Int) {
-        guard let i = days.firstIndex(of: day) else { return }
-        let j = i + dir
-        if j >= 0 && j < days.count { day = days[j]; return }
-        let w = week.adding(days: 7 * dir)
-        week = w
-        day = dir > 0 ? w : w.adding(days: 4)
+        (week, day) = TimetableNav.step(day: day, days: days, week: week, by: dir)
     }
 
     private func load() async {
@@ -143,13 +138,8 @@ struct MonthTimetable: View {
     @State private var loading = false
     @State private var showHidden = false
 
-    private var days: [Date] {
-        let n = Calendar.hu.range(of: .day, in: .month, for: month)!.count
-        return (0..<n).map { month.adding(days: $0) }
-    }
-
-    /// Empty cells before the 1st, Monday first.
-    private var leadingBlanks: Int { (Calendar.hu.component(.weekday, from: month) + 5) % 7 }
+    private var days: [Date] { TimetableNav.monthDays(month) }
+    private var leadingBlanks: Int { TimetableNav.leadingBlanks(month: month) }
 
     var body: some View {
         let byDay = Dictionary(grouping: lessons) { $0.kezdetIdopont.startOfDay }
@@ -288,4 +278,42 @@ private struct Legend: View {
     let color: Color
     let text: String
     var body: some View { HStack(spacing: 4) { Dot(color: color); Text(text) } }
+}
+
+/// One day in the week strip, like the iOS Calendar: a filled circle for the chosen day (green if it's today),
+/// a light green circle for today, a red dot under days with an announced test.
+private struct DayButton: View {
+    let date: Date
+    let selected: Bool
+    let today: Bool
+    let hasTest: Bool
+    var caption: String? = nil  // instead of the weekday letter
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Text(caption ?? date.hu("EEEEE"))  // H, K, Sz…
+                    .font(.caption)
+                    .foregroundStyle(caption == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
+                Text(date.hu("d"))
+                    .font(.title3.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(selected ? (today ? .white : Color(.systemBackground)) : today ? Color.accentColor : .primary)
+                    .frame(width: 36, height: 36)
+                    // chosen: solid (green if today); today otherwise: a light green circle, so it never looks like the others
+                    .background {
+                        if selected { Circle().fill(today ? Color.accentColor : .primary) }
+                        else if today { Circle().fill(Color.accentColor.opacity(0.18)) }
+                    }
+                Circle()
+                    .fill(hasTest ? Color.red : .clear)
+                    .frame(width: 5, height: 5)
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(date.hu("MMMMd EEEE"))\(today ? ", ma" : "")\(hasTest ? ", dolgozat" : "")")
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
 }

@@ -74,7 +74,8 @@ profiles | cut -f1 | while read -r f; do mv "$f" "$stash/"; done
 restore() { mv "$stash"/*.mobileprovision(N) "$PROFILES/" 2>/dev/null; }
 
 if ! xcodebuild -project "$PROJECT_DIR/Firka.xcodeproj" -scheme Firka -configuration Release \
-     -destination "id=$DEVICE" -derivedDataPath "$WORK/build" -allowProvisioningUpdates build >> "$LOG" 2>&1; then
+     -destination "id=$DEVICE" -derivedDataPath "$WORK/build" -allowProvisioningUpdates \
+     CURRENT_PROJECT_VERSION="$(date +%Y%m%d%H%M)" build >> "$LOG" 2>&1; then
   restore
   log "build failed"
   notify "A Firka megújítása nem sikerült (fordítás). Részletek: ~/Library/Logs/firka-renew.log"

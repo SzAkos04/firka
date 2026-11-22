@@ -5,24 +5,11 @@ struct GradesView: View {
     @Environment(AppStore.self) private var store
     @State private var mode = 0
 
-    private struct SubjectGrades: Identifiable {
-        var subject: Tantargy
-        var grades: [Ertekeles]
-        var id: String { subject.uid }
-    }
-
-    /// Mean class average over the subjects you have grades in (KRÉTA also sends subjects you don't).
-    private var classOverall: Double? {
-        let mine = Set(store.visibleGrades.map(\.tantargy.uid))
-        let all = (store.data.classAverages ?? [:]).filter { mine.contains($0.key) }.values
-        return all.isEmpty ? nil : all.reduce(0, +) / Double(all.count)
-    }
+    private var classOverall: Double? { GradesLogic.classOverall(store.visibleGrades, averages: store.data.classAverages) }
 
     var body: some View {
         let grades = store.visibleGrades
-        let subjects = Dictionary(grouping: grades, by: \.tantargy.uid).values
-            .map { SubjectGrades(subject: $0[0].tantargy, grades: $0) }
-            .sorted { ($0.subject.sortIndex ?? 0, $0.subject.nev) < ($1.subject.sortIndex ?? 0, $1.subject.nev) }
+        let subjects = GradesLogic.subjects(grades)
 
         NavigationStack {
             List {
@@ -293,8 +280,5 @@ struct ReportCardSection: View {
         }
     }
 
-    private func columnAverage(_ values: [Int?]) -> String {
-        let v = values.compactMap { $0 }
-        return v.isEmpty ? "–" : (Double(v.reduce(0, +)) / Double(v.count)).hu2
-    }
+    private func columnAverage(_ values: [Int?]) -> String { GradesLogic.columnAverage(values) }
 }

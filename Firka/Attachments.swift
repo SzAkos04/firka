@@ -64,14 +64,20 @@ struct AttachmentList: View {
     }
 }
 
+extension Csatolmany {
+    /// The original name (Quick Look and sharing use it), minus anything path-like.
+    var safeFileName: String {
+        let name = fajlNev.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
+        return ["", ".", ".."].contains(name) ? "fajl" : name
+    }
+}
+
 extension AppStore {
     /// Downloads an attachment into Caches (kept for next time; iOS may clear it when space is low).
     func download(_ a: Csatolmany) async throws -> URL {
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("attachments/\(a.azonosito)")
-        // keep the original name (Quick Look and sharing use it), minus anything path-like
-        let name = a.fajlNev.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
-        let file = dir.appendingPathComponent(name.isEmpty ? "fajl" : name)
+        let file = dir.appendingPathComponent(a.safeFileName)
         if FileManager.default.fileExists(atPath: file.path) { return file }
         guard let client = kretaClient else { throw KretaError.reauth }
         let data = try await client.raw(a.downloadURL, timeout: 120)

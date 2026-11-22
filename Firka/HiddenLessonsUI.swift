@@ -133,17 +133,5 @@ struct HiddenLessonsView: View {
         .toolbar { if !h.rules.isEmpty { EditButton() } }
     }
 
-    private func describe(_ r: HideRule) -> String {
-        let slot = r.slot.map { Int($0) != nil ? "\($0). óra" : $0 } ?? ""
-        switch r.kind {
-        case .once:
-            let d = r.day.flatMap { HiddenLessons.dayFormat.date(from: $0) }
-            return "Csak \(d?.hu("MMMd") ?? r.day ?? "") · \(slot)"
-        case .weekly:
-            let names = ["vasárnap", "hétfő", "kedd", "szerda", "csütörtök", "péntek", "szombat"]
-            return "Minden \(r.weekday.map { names[($0 - 1) % 7] } ?? "") · \(slot)"
-        case .subject:
-            return "A tantárgy összes órája"
-        }
-    }
+    private func describe(_ r: HideRule) -> String { r.summary }
 }

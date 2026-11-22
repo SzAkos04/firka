@@ -11,6 +11,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		F1000000000000000000C003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F1000000000000000000F001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F1000000000000000000E001;
+			remoteInfo = Firka;
+		};
 		F1000000000000000000C002 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = F1000000000000000000F001 /* Project object */;
@@ -42,12 +49,14 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		F1000000000000000000A004 /* FirkaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FirkaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1000000000000000000A003 /* FirkaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FirkaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1000000000000000000A001 /* Firka.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Firka.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1000000000000000000A002 /* FirkaWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = FirkaWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		F1000000000000000000G006 /* FirkaUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = FirkaUITests; sourceTree = "<group>"; };
 		F1000000000000000000G005 /* FirkaTests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = FirkaTests; sourceTree = "<group>"; };
 		F1000000000000000000G001 /* Firka */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -72,6 +81,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		F1000000000000000000H004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F1000000000000000000H003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -104,6 +120,7 @@
 				F1000000000000000000G003 /* Shared */,
 				F1000000000000000000G004 /* Config */,
 				F1000000000000000000G005 /* FirkaTests */,
+				F1000000000000000000G006 /* FirkaUITests */,
 				F1000000000000000000J002 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -114,6 +131,7 @@
 				F1000000000000000000A001 /* Firka.app */,
 				F1000000000000000000A002 /* FirkaWidgetExtension.appex */,
 				F1000000000000000000A003 /* FirkaTests.xctest */,
+				F1000000000000000000A004 /* FirkaUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -121,6 +139,27 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		F1000000000000000000E004 /* FirkaUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F1000000000000000000L005 /* Build configuration list for PBXNativeTarget "FirkaUITests" */;
+			buildPhases = (
+				F1000000000000000000K004 /* Sources */,
+				F1000000000000000000H004 /* Frameworks */,
+				F1000000000000000000M004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F1000000000000000000N003 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F1000000000000000000G006 /* FirkaUITests */,
+			);
+			name = FirkaUITests;
+			productName = FirkaUITests;
+			productReference = F1000000000000000000A004 /* FirkaUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		F1000000000000000000E003 /* FirkaTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F1000000000000000000L004 /* Build configuration list for PBXNativeTarget "FirkaTests" */;
@@ -213,11 +252,19 @@
 				F1000000000000000000E001 /* Firka */,
 				F1000000000000000000E002 /* FirkaWidgetExtension */,
 				F1000000000000000000E003 /* FirkaTests */,
+				F1000000000000000000E004 /* FirkaUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		F1000000000000000000M004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F1000000000000000000M003 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -242,6 +289,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		F1000000000000000000K004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F1000000000000000000K003 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -266,6 +320,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		F1000000000000000000N003 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F1000000000000000000E001 /* Firka */;
+			targetProxy = F1000000000000000000C003 /* PBXContainerItemProxy */;
+		};
 		F1000000000000000000N002 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = F1000000000000000000E001 /* Firka */;
@@ -279,6 +338,34 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		F1000000000000000000P009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_ID).uitests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Firka;
+			};
+			name = Debug;
+		};
+		F1000000000000000000P010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(APP_ID).uitests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Firka;
+			};
+			name = Release;
+		};
 		F1000000000000000000P007 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -515,6 +602,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		F1000000000000000000L005 /* Build configuration list for PBXNativeTarget "FirkaUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F1000000000000000000P009 /* Debug */,
+				F1000000000000000000P010 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		F1000000000000000000L004 /* Build configuration list for PBXNativeTarget "FirkaTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

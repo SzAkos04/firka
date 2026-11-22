@@ -106,10 +106,9 @@ struct LoginWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-            guard let url = action.request.url, url.path == Kreta.redirectPath else { return decisionHandler(.allow) }
+            guard let url = action.request.url, Kreta.isRedirect(url) else { return decisionHandler(.allow) }
             decisionHandler(.cancel)
-            if !handled, let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "code" })?.value {
+            if !handled, let code = Kreta.code(fromRedirect: url) {
                 handled = true
                 onCode(code)
             }

@@ -29,6 +29,7 @@ struct MiscTests {
         ("A &amp; B &quot;C&quot; &lt;3", "A & B \"C\" <3"),
         ("Kedves Tanulók! <strong style=\"color: rgba(34, 3", "Kedves Tanulók!"),  // cut off by KRÉTA's 100-character preview
         ("sor<br>  \n\n  másik<br/>", "sor\nmásik"),
+        ("<style>p { color: red }</style><p>Szia</p><SCRIPT type=\"x\">alert(1)</SCRIPT>", "Szia"),  // code isn't text
     ])
     func stripTags(_ html: String, _ text: String) {
         #expect(html.strippingTags == text)
