@@ -1,0 +1,7 @@
+xcuserdata/
+*.xcuserstate
+build/
+DerivedData/
+.DS_Store
+Config/Local.xcconfig
+scripts/renew.local.sh

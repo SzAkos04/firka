@@ -1,0 +1,9 @@
+// Build settings shared by all targets.
+// Your own signing goes in Config/Local.xcconfig, which is not in git:
+//   APP_ID = hu.yourname.firka
+//   DEVELOPMENT_TEAM = ABCDE12345
+// APP_ID sets the app's bundle id, the widget's (APP_ID.widget) and the App Group (group.APP_ID).
+
+APP_ID = hu.firkaios.app
+
+#include? "Local.xcconfig"
