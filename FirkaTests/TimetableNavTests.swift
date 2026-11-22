@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Firka
 
-/// The week strip: which week/day it shows, the "ma" circle, swiping. Dates are in Budapest time.
+/// The week strip: which week/day it shows, changing weeks, the "Ma" button, swiping. Dates are in Budapest time.
 @Suite("Timetable navigation")
 struct TimetableNavTests {
     let sunday = budapest(2026, 11, 22)      // a free Sunday
@@ -16,11 +16,40 @@ struct TimetableNavTests {
         #expect(TimetableNav.week(showing: monday, lessonDays: schoolWeek) == monday)
     }
 
-    @Test("bug: tapping \"ma\" on a free Sunday jumped back a week; it must stay on the coming week")
-    func todayCellOnSundayStays() {
-        let shown = TimetableNav.days(week: monday, lessonDays: schoolWeek)
-        #expect(TimetableNav.showsTodayCell(today: sunday, days: shown))
-        #expect(TimetableNav.week(showing: sunday, lessonDays: schoolWeek) == monday)  // was lastMonday
+    @Test("changing weeks keeps the day of the week")
+    func moveKeepsWeekday() {
+        let wednesday = budapest(2026, 11, 25)
+        #expect(TimetableNav.move(week: monday, day: wednesday, by: 1, lessonDays: schoolWeek) == (budapest(2026, 11, 30), budapest(2026, 12, 2)))
+        #expect(TimetableNav.move(week: monday, day: wednesday, by: -1, lessonDays: schoolWeek) == (lastMonday, budapest(2026, 11, 18)))
+        #expect(TimetableNav.move(week: monday, day: budapest(2026, 11, 27), by: 2, lessonDays: schoolWeek).day == budapest(2026, 12, 11))
+    }
+
+    @Test("bug: from a day outside the strip the next week had an invisible Sunday selected; now its Monday")
+    func moveFromOutsideTheStrip() {
+        #expect(TimetableNav.move(week: monday, day: sunday, by: 1, lessonDays: schoolWeek) == (budapest(2026, 11, 30), budapest(2026, 11, 30)))
+        let saturday = budapest(2026, 11, 21)  // a working Saturday; the week after has none
+        #expect(TimetableNav.move(week: lastMonday, day: saturday, by: 1, lessonDays: schoolWeek.union([saturday])) == (monday, monday))
+        let nextSaturday = budapest(2026, 11, 28)  // that week has one too: Saturday stays
+        #expect(TimetableNav.move(week: lastMonday, day: saturday, by: 1, lessonDays: [saturday, nextSaturday]).day == nextSaturday)
+    }
+
+    @Test("the \"Ma\" button is off where it would lead anyway")
+    func atToday() {
+        let wednesday = budapest(2026, 11, 25)
+        #expect(TimetableNav.isAtToday(day: wednesday, today: wednesday, lessonDays: schoolWeek))
+        #expect(!TimetableNav.isAtToday(day: budapest(2026, 11, 26), today: wednesday, lessonDays: schoolWeek))
+        #expect(TimetableNav.isAtToday(day: monday, today: sunday, lessonDays: schoolWeek), "free Sunday: Monday is where Ma leads")
+        #expect(!TimetableNav.isAtToday(day: budapest(2026, 11, 30), today: sunday, lessonDays: schoolWeek))
+    }
+
+    @Test("on a free weekend the coming week says why today isn't in it")
+    func weekendNote() {
+        #expect(TimetableNav.weekendNote(today: sunday, week: monday, lessonDays: schoolWeek) == "Ma vasárnap van, nincs óra")
+        #expect(TimetableNav.weekendNote(today: budapest(2026, 11, 21), week: monday, lessonDays: schoolWeek) == "Ma szombat van, nincs óra")
+        #expect(TimetableNav.weekendNote(today: sunday, week: budapest(2026, 11, 30), lessonDays: schoolWeek) == nil, "other weeks: nothing")
+        #expect(TimetableNav.weekendNote(today: budapest(2026, 11, 25), week: monday, lessonDays: schoolWeek) == nil, "weekday: nothing")
+        let saturday = budapest(2026, 11, 21)
+        #expect(TimetableNav.weekendNote(today: saturday, week: lastMonday, lessonDays: [saturday]) == nil, "working Saturday: nothing")
     }
 
     @Test("a working Saturday is a school day: it opens on it and the strip shows it")
@@ -31,7 +60,6 @@ struct TimetableNavTests {
         #expect(TimetableNav.week(showing: saturday, lessonDays: days) == lastMonday)
         let shown = TimetableNav.days(week: lastMonday, lessonDays: days)
         #expect(shown.count == 6 && shown.last == saturday, "Saturday yes, the free Sunday no")
-        #expect(!TimetableNav.showsTodayCell(today: saturday, days: shown))
     }
 
     @Test("a weekend with only a school-calendar event (no lessons) doesn't add columns")
@@ -44,14 +72,11 @@ struct TimetableNavTests {
         #expect(TimetableNav.openingDay(today: saturday, lessonDays: found) == budapest(2026, 11, 30))
     }
 
-    @Test("on a weekday the \"ma\" circle only shows when another week is open")
-    func todayCellOnWeekday() {
+    @Test("on a weekday the timetable opens on today, in its own week")
+    func weekday() {
         let wednesday = budapest(2026, 11, 25)
-        #expect(!TimetableNav.showsTodayCell(today: wednesday, days: TimetableNav.days(week: monday, lessonDays: schoolWeek)))
-        let nextWeek = monday.adding(days: 7)
-        #expect(TimetableNav.showsTodayCell(today: wednesday, days: TimetableNav.days(week: nextWeek, lessonDays: schoolWeek)))
-        #expect(TimetableNav.week(showing: wednesday, lessonDays: schoolWeek) == monday)
         #expect(TimetableNav.openingDay(today: wednesday, lessonDays: schoolWeek) == wednesday)
+        #expect(TimetableNav.week(showing: wednesday, lessonDays: schoolWeek) == monday)
     }
 
     @Test("swiping crosses weeks at the ends")
@@ -63,8 +88,8 @@ struct TimetableNavTests {
         #expect(TimetableNav.step(day: monday, days: days, week: monday, by: -1) == (lastMonday, budapest(2026, 11, 20)))
     }
 
-    @Test("swiping from \"ma\" (a day outside the strip) goes to the strip's first day, or back a week")
-    func stepFromTodayCell() {
+    @Test("swiping from a day outside the strip goes to its first day, or back a week")
+    func stepFromOutside() {
         let days = TimetableNav.days(week: monday, lessonDays: schoolWeek)
         #expect(TimetableNav.step(day: sunday, days: days, week: monday, by: 1) == (monday, monday))
         #expect(TimetableNav.step(day: sunday, days: days, week: monday, by: -1) == (lastMonday, budapest(2026, 11, 20)))

@@ -43,13 +43,13 @@ struct TimetableView: View {
     private var weekView: some View {
             VStack(spacing: 0) {
                 HStack {
-                    Button { move(-7) } label: { Image(systemName: "chevron.left") }
+                    Button { move(-1) } label: { Image(systemName: "chevron.left") }
                         .accessibilityLabel("Előző hét").accessibilityIdentifier("previousWeek")
                     Spacer()
                     Text("\(week.hu("MMMd")) – \(week.adding(days: 6).hu("MMMd"))").font(.headline)
                         .accessibilityIdentifier("weekTitle")
                     Spacer()
-                    Button { move(7) } label: { Image(systemName: "chevron.right") }
+                    Button { move(1) } label: { Image(systemName: "chevron.right") }
                         .accessibilityLabel("Következő hét").accessibilityIdentifier("nextWeek")
                 }
                 .padding(.horizontal)
@@ -58,13 +58,6 @@ struct TimetableView: View {
                 let testDays = Set(store.data.tests.map { $0.datum.startOfDay })
                 let today = Date().startOfDay
                 HStack(spacing: 0) {
-                    // Today isn't in this strip (weekend, or another week): a "ma" circle up front jumps to it.
-                    if TimetableNav.showsTodayCell(today: today, days: days) {
-                        DayButton(date: today, selected: day == today, today: true, hasTest: testDays.contains(today), caption: "ma") { show(today) }
-                            .accessibilityIdentifier("todayCell")
-                        .frame(width: 48)
-                        Rectangle().fill(.separator).frame(width: 0.5, height: 44).padding(.trailing, 4)
-                    }
                     ForEach(days, id: \.self) { d in
                         DayButton(date: d, selected: d == day, today: d == today, hasTest: testDays.contains(d)) { day = d }
                     }
@@ -77,11 +70,16 @@ struct TimetableView: View {
                     guard abs(v.translation.width) > abs(v.translation.height) else { return }
                     step(v.translation.width < 0 ? 1 : -1)
                 })
+                if let note = TimetableNav.weekendNote(today: today, week: week, lessonDays: lessonDays) {
+                    Text(note).font(.footnote).foregroundStyle(.secondary).padding(.bottom, 8)
+                        .accessibilityIdentifier("weekendNote")
+                }
 
                 dayList
             }
             .toolbar {
                 Button("Ma") { show(TimetableNav.openingDay(today: Date().startOfDay, lessonDays: lessonDays)) }
+                    .disabled(TimetableNav.isAtToday(day: day, today: Date().startOfDay, lessonDays: lessonDays))
             }
             .task(id: week) { await load() }
             .onChange(of: store.data.updated) { Task { await load() } }
@@ -112,9 +110,8 @@ struct TimetableView: View {
         .refreshable { await store.refresh(); await load() }
     }
 
-    private func move(_ days: Int) {
-        week = week.adding(days: days)
-        day = day.adding(days: days)
+    private func move(_ weeks: Int) {
+        (week, day) = TimetableNav.move(week: week, day: day, by: weeks, lessonDays: lessonDays)
     }
 
     /// Swipe to the next/previous school day, crossing weeks.
@@ -287,15 +284,14 @@ private struct DayButton: View {
     let selected: Bool
     let today: Bool
     let hasTest: Bool
-    var caption: String? = nil  // instead of the weekday letter
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             VStack(spacing: 3) {
-                Text(caption ?? date.hu("EEEEE"))  // H, K, Sz…
+                Text(date.hu("EEEEE"))  // H, K, Sz…
                     .font(.caption)
-                    .foregroundStyle(caption == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
+                    .foregroundStyle(.secondary)
                 Text(date.hu("d"))
                     .font(.title3.weight(.semibold).monospacedDigit())
                     .foregroundStyle(selected ? (today ? .white : Color(.systemBackground)) : today ? Color.accentColor : .primary)
@@ -315,5 +311,6 @@ private struct DayButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel("\(date.hu("MMMMd EEEE"))\(today ? ", ma" : "")\(hasTest ? ", dolgozat" : "")")
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityIdentifier("day")
     }
 }

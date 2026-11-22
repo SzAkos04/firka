@@ -34,19 +34,32 @@ final class FirkaUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Beállítások"].waitForExistence(timeout: 3))
     }
 
-    /// The reported bug: the "ma" circle jumped a week back (on a free Sunday it showed last week).
-    func testTodayCellAndButtonReturnToTheOpeningWeek() {
+    /// Changing weeks keeps the day of the week; "Ma" goes back to where the timetable opened, and is off there.
+    func testWeekChangeKeepsTheDayAndMaGoesBack() {
         tab("Órarend")
         XCTAssertTrue(weekTitle.waitForExistence(timeout: 3))
         let opening = weekTitle.label
+        let ma = app.navigationBars.buttons["Ma"]
+        let days = app.buttons.matching(identifier: "day")
+        var selected: String? { days.allElementsBoundByIndex.first { $0.isSelected }?.label }
+        XCTAssertFalse(ma.isEnabled, "already where Ma leads")
+        XCTAssertEqual(days.count, 5)
+        XCTAssertEqual(app.staticTexts["weekendNote"].exists, Calendar.current.isDateInWeekend(Date()), "only on a free weekend")
+
+        days.element(boundBy: 2).tap()
+        XCTAssertTrue(selected?.contains("szerda") == true)
+        XCTAssertTrue(ma.isEnabled)
         app.buttons["nextWeek"].tap()
         XCTAssertNotEqual(weekTitle.label, opening)
-        app.buttons["todayCell"].tap()
-        XCTAssertEqual(weekTitle.label, opening)
+        XCTAssertTrue(selected?.contains("szerda") == true, "still Wednesday, a week later")
+        XCTAssertFalse(app.staticTexts["weekendNote"].exists)
         app.buttons["previousWeek"].tap()
         app.buttons["previousWeek"].tap()
-        app.navigationBars.buttons["Ma"].tap()
+        XCTAssertTrue(selected?.contains("szerda") == true)
+
+        ma.tap()
         XCTAssertEqual(weekTitle.label, opening)
+        XCTAssertFalse(ma.isEnabled)
     }
 
     func testMonthViewAndBack() {

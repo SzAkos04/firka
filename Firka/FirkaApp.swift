@@ -8,7 +8,15 @@ struct FirkaApp: App {
     /// Unit tests run inside the app: it stays idle so it doesn't sync or touch the data the tests use.
     static let underUnitTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
-    init() { Background.register() }
+    init() {
+        if Self.underUnitTests {
+            // The UI tests share this app's settings on the simulator: start the unit tests without their renames or hidden lessons.
+            Renames.shared.subjects = [:]
+            Renames.shared.teachers = [:]
+            HiddenLessons.shared.rules = []
+        }
+        Background.register()
+    }
 
     var body: some Scene {
         WindowGroup {
