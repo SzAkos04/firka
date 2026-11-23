@@ -5,8 +5,11 @@ import WidgetKit
 struct LessonLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LessonActivityAttributes.self) { ctx in
+            // The lock screen hands the activity "dark" whatever the phone's mode: the app passes the real one.
             LockScreenLessons(state: ctx.state, stale: ctx.isStale)
                 .padding(16)
+                .environment(\.colorScheme, ctx.state.light ? .light : .dark)
+                .activityBackgroundTint(ctx.state.light ? Color(hex: 0xFFFFFF) : Color(hex: 0x111111))
         } dynamicIsland: { ctx in
             let s = ctx.state, l = s.focused
             return DynamicIsland {
@@ -40,36 +43,95 @@ private struct LockScreenLessons: View {
     let stale: Bool
 
     var body: some View {
-        let l = state.focused
-        VStack(alignment: .leading, spacing: 10) {
-            if stale {
-                // The headline may be outdated; the bars below are always right.
+        if stale {
+            // The headline may be outdated; the bars below are always right.
+            VStack(alignment: .leading, spacing: 10) {
                 Text("Mai órák").font(.headline)
-            } else {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(state.inLesson ? "MOST" : "KÖVETKEZŐ")
-                            .font(.caption2.bold())
-                            .foregroundStyle(Color.liveAccent)
-                        Text(l.subject).font(.headline).lineLimit(1)
-                        Text(details(l)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Countdown(state: state)
-                            .font(.title2.weight(.semibold).monospacedDigit())
-                            .multilineTextAlignment(.trailing)
-                        Text(state.inLesson ? "vége \(l.end.time)" : "kezdés \(l.start.time)")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
+                DayBars(lessons: state.lessons)
+            }
+        } else if state.inLesson {
+            NowAndNext(state: state)
+        } else {
+            GoToRoom(state: state)
+        }
+    }
+}
+
+/// In a lesson: how long it lasts, and what comes after it (and where).
+private struct NowAndNext: View {
+    let state: LessonActivityAttributes.ContentState
+
+    var body: some View {
+        let l = state.focused
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text((["MOST"] + [l.number.map { "\($0). óra" }].compactMap { $0 }).joined(separator: " · "))
+                        .font(.caption2.bold()).foregroundStyle(Color.liveAccent)
+                    Text(l.subject).font(.headline).lineLimit(1)
                 }
+                Spacer()
+                Countdown(state: state)
+                    .font(.title2.weight(.semibold).monospacedDigit())
+                    .multilineTextAlignment(.trailing)
+            }
+            HStack {
+                if let room = l.room { Label(room, systemImage: "door.left.hand.open").lineLimit(1) }
+                if l.substituted { Text("helyettesítés").foregroundStyle(.orange) }
+                Spacer()
+                Text("vége \(l.end.time)")
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            ProgressView(timerInterval: l.start...l.end, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
+                .progressViewStyle(.linear)
+                .tint(Color.liveAccent)
+            Divider()
+            if let n = state.next {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("UTÁNA").font(.caption2.bold()).foregroundStyle(.secondary)
+                    Text(n.subject).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    if let room = n.room { Text("· \(room)").font(.subheadline).foregroundStyle(.secondary).lineLimit(1) }
+                    Spacer(minLength: 4)
+                    Text(n.start.time).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Ez a mai utolsó óra").font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// In a break (or before the first lesson): where to go, big, and the day's bars.
+private struct GoToRoom: View {
+    let state: LessonActivityAttributes.ContentState
+
+    var body: some View {
+        let l = state.focused
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(state.inBreak ? "SZÜNET" : "KÖVETKEZŐ").font(.caption2.bold()).foregroundStyle(Color.liveAccent)
+                Spacer()
+                Countdown(state: state).font(.title3.weight(.semibold).monospacedDigit()).multilineTextAlignment(.trailing)
+            }
+            HStack(alignment: .center, spacing: 12) {
+                if let room = l.room {
+                    Image(systemName: "door.left.hand.open").font(.title3).foregroundStyle(.secondary)  // "terem", for any room name
+                    Text(room)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                        .frame(maxWidth: 170, alignment: .leading)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(l.subject).font(l.room == nil ? .title3.bold() : .headline).lineLimit(1)
+                    Text(([l.number.map { "\($0). óra" }, "kezdés \(l.start.time)"].compactMap { $0 }
+                          + (l.substituted ? ["helyettesítés"] : [])).joined(separator: " · "))
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
             }
             DayBars(lessons: state.lessons)
         }
-    }
-
-    private func details(_ l: WidgetLesson) -> String {
-        [l.number.map { "\($0). óra" }, l.room, l.substituted ? "helyettesítés" : nil].compactMap { $0 }.joined(separator: " · ")
     }
 }
 

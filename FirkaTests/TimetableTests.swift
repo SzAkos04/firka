@@ -88,6 +88,28 @@ struct TimetableTests {
         #expect(inLesson.sameContent(as: LessonActivityAttributes.ContentState(lessons: day, now: budapest(2026, 11, 23, 8, 20))!))
     }
 
+    @Test("Live Activity: what comes next (cancelled ones skipped); a break only once a lesson was held today")
+    func liveActivityNextAndBreak() {
+        let at = { (h: Int, m: Int) in LessonActivityAttributes.ContentState(lessons: self.day, now: budapest(2026, 11, 23, h, m))! }
+        #expect(at(8, 10).next?.subject == "C", "after A comes C: B is cancelled")
+        #expect(!at(8, 10).inBreak, "in a lesson")
+        #expect(at(8, 50).inBreak && at(8, 50).focused.subject == "C", "A is over: a break before C")
+        #expect(at(8, 50).next == nil, "C is the last one")
+        #expect(!at(7, 30).inBreak && at(7, 30).focused.subject == "A", "before the first lesson it isn't a break")
+        let lateStart = [widgetLesson("X", budapest(2026, 11, 23, 8), cancelled: true), widgetLesson("Y", budapest(2026, 11, 23, 8, 55))]
+        #expect(!LessonActivityAttributes.ContentState(lessons: lateStart, now: budapest(2026, 11, 23, 8, 30))!.inBreak,
+                "a cancelled first lesson doesn't make the morning a break")
+    }
+
+    @Test("Live Activity: it carries the phone's light/dark mode (the lock screen always says dark), a switch is an update")
+    func liveActivityAppearance() {
+        let now = budapest(2026, 11, 23, 8, 10)
+        let light = LessonActivityAttributes.ContentState(lessons: day, now: now, light: true)!
+        let dark = LessonActivityAttributes.ContentState(lessons: day, now: now, light: false)!
+        #expect(light.light && !dark.light)
+        #expect(!light.sameContent(as: dark), "switching the mode redraws the activity")
+    }
+
     @Test func nextLessonChange() {
         #expect(LessonLive.nextChange(day, after: budapest(2026, 11, 23, 8, 10)) == budapest(2026, 11, 23, 8, 45))
         #expect(LessonLive.nextChange(day, after: budapest(2026, 11, 23, 23)) == nil)

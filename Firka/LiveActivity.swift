@@ -1,5 +1,5 @@
 import ActivityKit
-import Foundation
+import UIKit
 
 /// Keeps today's lesson Live Activity in step with the timetable. Cheap to call often:
 /// it only talks to ActivityKit when the headline lesson changes.
@@ -15,7 +15,7 @@ enum LessonLive {
         let running = Activity<LessonActivityAttributes>.activities
 
         // Nothing left today (or switched off): end what's running.
-        guard enabled, let state = LessonActivityAttributes.ContentState(lessons: lessons, now: now) else {
+        guard enabled, let state = LessonActivityAttributes.ContentState(lessons: lessons, now: now, light: await phoneIsLight()) else {
             for a in running { await a.end(nil, dismissalPolicy: .immediate) }
             return
         }
@@ -35,6 +35,12 @@ enum LessonLive {
                 log.error("live activity start failed: \(String(describing: error), privacy: .public)")
             }
         }
+    }
+
+    /// The phone's appearance, as the app's window sees it (the activity itself can't tell on the lock screen).
+    @MainActor private static func phoneIsLight() -> Bool {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        return (scene?.traitCollection ?? UITraitCollection.current).userInterfaceStyle != .dark
     }
 
     /// iOS ends activities after 8 hours, so don't start long before the first held lesson.
