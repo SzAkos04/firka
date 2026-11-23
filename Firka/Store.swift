@@ -228,6 +228,7 @@ final class AppStore {
             Renames.shared.subjects = [:]
             Renames.shared.teachers = [:]
             UserDefaults.standard.removeObject(forKey: Pref.surpriseGrades)
+            UserDefaults.standard.removeObject(forKey: Pref.timetableMonth)
         }
         #endif
         client = token.map(KretaClient.init)

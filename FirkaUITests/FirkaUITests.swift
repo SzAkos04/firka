@@ -64,6 +64,16 @@ final class FirkaUITests: XCTestCase {
         XCTAssertFalse(ma.isEnabled)
     }
 
+    /// The lessons start right under the day strip, no empty band between them.
+    func testLessonsSitUnderTheDayStrip() {
+        tab("Órarend")
+        let row = app.buttons.matching(identifier: "lessonRow").firstMatch
+        if !row.waitForExistence(timeout: 3) { app.buttons["nextWeek"].tap() }
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        let gap = row.frame.minY - app.buttons.matching(identifier: "day").firstMatch.frame.maxY
+        XCTAssertLessThanOrEqual(gap, 24, "gap under the strip: \(gap) pt")
+    }
+
     func testMonthViewAndBack() {
         tab("Órarend")
         app.buttons["Hónap"].tap()

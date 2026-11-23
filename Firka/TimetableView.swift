@@ -72,7 +72,9 @@ struct TimetableView: View {
                 })
 
                 dayList
+                    .contentMargins(.top, 8, for: .scrollContent)  // the strip is the header: no empty band under it
             }
+            .background(Color(.systemGroupedBackground))  // one surface with the list, like the month view
             .toolbar {
                 Button("Ma") { show(TimetableNav.openingDay(today: Date().startOfDay, lessonDays: lessonDays)) }
                     .disabled(TimetableNav.isAtToday(day: day, today: Date().startOfDay, lessonDays: lessonDays))
