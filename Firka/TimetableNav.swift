@@ -23,23 +23,16 @@ enum TimetableNav {
         isFreeWeekend(today, lessonDays) ? today.startOfWeek.adding(days: 7) : today
     }
 
-    /// `weeks` weeks forward or back, on the same day of the week; Monday if that day isn't in the new strip.
-    static func move(week: Date, day: Date, by weeks: Int, lessonDays: Set<Date>) -> (week: Date, day: Date) {
+    /// `weeks` weeks forward or back: Monday is selected, or on the week "Ma" leads to, that day.
+    static func move(week: Date, by weeks: Int, today: Date, lessonDays: Set<Date>) -> (week: Date, day: Date) {
         let w = week.adding(days: 7 * weeks)
-        let offset = day.startOfWeek == week ? Calendar.hu.dateComponents([.day], from: week, to: day).day ?? 0 : 0
-        let same = w.adding(days: offset)
-        return (w, days(week: w, lessonDays: lessonDays).contains(same) ? same : w)
+        let opening = openingDay(today: today, lessonDays: lessonDays)
+        return (w, opening.startOfWeek == w ? opening : w)
     }
 
     /// Whether `day` is where "Ma" leads, so the button has nothing to do.
     static func isAtToday(day: Date, today: Date, lessonDays: Set<Date>) -> Bool {
         day == openingDay(today: today, lessonDays: lessonDays)
-    }
-
-    /// On a free weekend the strip shows the coming week; this says why today isn't in it.
-    static func weekendNote(today: Date, week: Date, lessonDays: Set<Date>) -> String? {
-        guard isFreeWeekend(today, lessonDays), week == openingDay(today: today, lessonDays: lessonDays).startOfWeek else { return nil }
-        return "Ma \(today.hu("EEEE")) van, nincs óra"
     }
 
     /// One school day forward (+1) or back (-1), crossing weeks. From a day outside the strip

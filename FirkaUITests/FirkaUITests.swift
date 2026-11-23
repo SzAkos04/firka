@@ -34,31 +34,33 @@ final class FirkaUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Beállítások"].waitForExistence(timeout: 3))
     }
 
-    /// Changing weeks keeps the day of the week; "Ma" goes back to where the timetable opened, and is off there.
-    func testWeekChangeKeepsTheDayAndMaGoesBack() {
+    /// Changing weeks selects Monday (today's week: today); "Ma" goes back to where the timetable opened, and is off there.
+    func testWeekChangeSelectsMondayAndMaGoesBack() {
         tab("Órarend")
         XCTAssertTrue(weekTitle.waitForExistence(timeout: 3))
         let opening = weekTitle.label
         let ma = app.navigationBars.buttons["Ma"]
         let days = app.buttons.matching(identifier: "day")
         var selected: String? { days.allElementsBoundByIndex.first { $0.isSelected }?.label }
+        let openingDay = selected
         XCTAssertFalse(ma.isEnabled, "already where Ma leads")
         XCTAssertEqual(days.count, 5)
-        XCTAssertEqual(app.staticTexts["weekendNote"].exists, Calendar.current.isDateInWeekend(Date()), "only on a free weekend")
 
         days.element(boundBy: 2).tap()
         XCTAssertTrue(selected?.contains("szerda") == true)
         XCTAssertTrue(ma.isEnabled)
         app.buttons["nextWeek"].tap()
         XCTAssertNotEqual(weekTitle.label, opening)
-        XCTAssertTrue(selected?.contains("szerda") == true, "still Wednesday, a week later")
-        XCTAssertFalse(app.staticTexts["weekendNote"].exists)
+        XCTAssertTrue(selected?.contains("hétfő") == true, "a new week starts on Monday")
         app.buttons["previousWeek"].tap()
+        XCTAssertEqual(weekTitle.label, opening)
+        XCTAssertEqual(selected, openingDay, "back on today's week: today")
         app.buttons["previousWeek"].tap()
-        XCTAssertTrue(selected?.contains("szerda") == true)
+        XCTAssertTrue(selected?.contains("hétfő") == true)
 
         ma.tap()
         XCTAssertEqual(weekTitle.label, opening)
+        XCTAssertEqual(selected, openingDay)
         XCTAssertFalse(ma.isEnabled)
     }
 

@@ -70,10 +70,6 @@ struct TimetableView: View {
                     guard abs(v.translation.width) > abs(v.translation.height) else { return }
                     step(v.translation.width < 0 ? 1 : -1)
                 })
-                if let note = TimetableNav.weekendNote(today: today, week: week, lessonDays: lessonDays) {
-                    Text(note).font(.footnote).foregroundStyle(.secondary).padding(.bottom, 8)
-                        .accessibilityIdentifier("weekendNote")
-                }
 
                 dayList
             }
@@ -111,7 +107,7 @@ struct TimetableView: View {
     }
 
     private func move(_ weeks: Int) {
-        (week, day) = TimetableNav.move(week: week, day: day, by: weeks, lessonDays: lessonDays)
+        (week, day) = TimetableNav.move(week: week, by: weeks, today: Date().startOfDay, lessonDays: lessonDays)
     }
 
     /// Swipe to the next/previous school day, crossing weeks.
