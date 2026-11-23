@@ -95,20 +95,23 @@ private struct DayBars: View {
         HStack(spacing: 4) {
             ForEach(lessons, id: \.self) { l in
                 VStack(spacing: 3) {
-                    if l.cancelled {
-                        Capsule().fill(.secondary.opacity(0.25)).frame(height: 5)
-                    } else {
-                        ProgressView(timerInterval: l.start...l.end, countsDown: false) {
-                            EmptyView()
-                        } currentValueLabel: {
-                            EmptyView()
+                    Group {
+                        if l.cancelled {
+                            Capsule().fill(Color.red.opacity(0.5))  // red like a cancelled lesson in the timetable
+                        } else {
+                            ProgressView(timerInterval: l.start...l.end, countsDown: false) {
+                                EmptyView()
+                            } currentValueLabel: {
+                                EmptyView()
+                            }
+                            .progressViewStyle(.linear)
+                            .tint(Color.liveAccent)
                         }
-                        .progressViewStyle(.linear)
-                        .tint(Color.liveAccent)
                     }
+                    .frame(height: 5)  // same height for both, so the numbers line up
                     Text(l.number.map(String.init) ?? "")
                         .font(.caption2.monospacedDigit())
-                        .foregroundStyle(l.cancelled ? .tertiary : .secondary)
+                        .foregroundStyle(l.cancelled ? AnyShapeStyle(Color.red.opacity(0.8)) : AnyShapeStyle(.secondary))
                         .strikethrough(l.cancelled)
                 }
             }
