@@ -92,7 +92,7 @@ private struct NewGradeRow: View {
             }
             Spacer(minLength: 0)
             if hidden {
-                Text("Felfedés").font(.caption).foregroundStyle(.tertiary)
+                Text("Felfedés").font(.caption).foregroundStyle(.secondary)
             }
         }
         .contentShape(Rectangle())

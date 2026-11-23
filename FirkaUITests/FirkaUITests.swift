@@ -40,6 +40,31 @@ final class FirkaUITests: XCTestCase {
         XCTAssertTrue(shows(app.buttons["Beállítások"]))
     }
 
+    /// Text must stand out from its background in light and dark mode alike (a colour that only works on one of them
+    /// is invisible on the other). iOS's own accessibility audit measures it on every main screen.
+    func testContrastInLightAndDarkMode() throws {
+        addTeardownBlock { XCUIDevice.shared.appearance = .light }  // the simulator keeps it: leave it as the other tests expect
+        var found: [String] = []
+        for mode in [XCUIDevice.Appearance.light, .dark] {
+            XCUIDevice.shared.appearance = mode
+            for screen in ["Kezdőlap", "Órarend", "Jegyek", "Hiányzások", "Egyebek"] {
+                tab(screen)
+                let tabBar = app.tabBars.firstMatch.frame.insetBy(dx: 0, dy: -60)  // with the fade above it
+                try app.performAccessibilityAudit(for: .contrast) { issue in
+                    // Not ours to fix: iOS's own secondary greys ("nearly passed"), disabled controls (meant to be faint),
+                    // rows scrolled under the see-through tab bar or into the fade above it.
+                    let ignore = issue.compactDescription.contains("nearly") || issue.element?.isEnabled == false
+                        || issue.element.map { $0.frame.intersects(tabBar) } == true
+                    if !ignore {
+                        found.append("\(mode == .dark ? "sötét" : "világos") · \(screen): \(issue.element?.label ?? "?") – \(issue.compactDescription)")
+                    }
+                    return true  // collect all of them, report below
+                }
+            }
+        }
+        XCTAssertTrue(found.isEmpty, "low contrast:\n" + found.joined(separator: "\n"))
+    }
+
     /// Changing weeks selects Monday (today's week: today); "Ma" goes back to where the timetable opened, and is off there.
     func testWeekChangeSelectsMondayAndMaGoesBack() {
         tab("Órarend")

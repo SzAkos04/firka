@@ -298,7 +298,7 @@ private struct DayButton: View {
                     .foregroundStyle(.secondary)
                 Text(date.hu("d"))
                     .font(.title3.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(selected ? (today ? .white : Color(.systemBackground)) : today ? Color.accentColor : .primary)
+                    .foregroundStyle(selected ? Color(.systemBackground) : today ? Color.accentColor : .primary)  // on the lime circle of dark mode white would vanish
                     .frame(width: 36, height: 36)
                     // chosen: solid (green if today); today otherwise: a light green circle, so it never looks like the others
                     .background {

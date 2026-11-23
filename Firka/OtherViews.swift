@@ -13,9 +13,9 @@ struct AbsencesView: View {
             List {
                 Section {
                     HStack(spacing: 8) {
-                        Stat(value: stats.justified, label: "Igazolt", color: .green)
-                        Stat(value: stats.unjustified, label: "Igazolatlan", color: .red)
-                        Stat(value: stats.pending, label: "Igazolandó", color: .orange)
+                        Stat(value: stats.justified, label: "Igazolt", color: .justified)
+                        Stat(value: stats.unjustified, label: "Igazolatlan", color: .unjustified)
+                        Stat(value: stats.pending, label: "Igazolandó", color: .pending)
                         Stat(value: stats.lateMinutes, label: "Késés, perc", color: nil)
                     }
                     .listRowInsets(EdgeInsets())

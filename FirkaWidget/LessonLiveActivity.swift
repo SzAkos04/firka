@@ -9,7 +9,7 @@ struct LessonLiveActivity: Widget {
             LockScreenLessons(state: ctx.state, stale: ctx.isStale)
                 .padding(16)
                 .environment(\.colorScheme, ctx.state.light ? .light : .dark)
-                .activityBackgroundTint(ctx.state.light ? Color(hex: 0xFFFFFF) : Color(hex: 0x111111))
+                .activityBackgroundTint(Color.liveCard(light: ctx.state.light))
         } dynamicIsland: { ctx in
             let s = ctx.state, l = s.focused
             return DynamicIsland {
@@ -215,10 +215,7 @@ private struct LessonBar: View {
         ProgressView(timerInterval: lesson.start...lesson.end, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
             .progressViewStyle(.linear)
             .tint(Color.liveAccent)
-            .background(Capsule().fill(Color.primary.opacity(0.2)))
+            .background(Capsule().fill(Color.liveTrack))
     }
 }
 
-private extension Color {
-    static let liveAccent = Color(light: 0x3A7A0C, dark: 0xA7DC22)
-}

@@ -39,11 +39,19 @@ extension Mulasztas {
     }
     var stateColor: Color {
         switch igazolasAllapota {
-        case "Igazolt": .green
-        case "Igazolatlan": .red
-        default: .orange
+        case "Igazolt": .justified
+        case "Igazolatlan": .unjustified
+        default: .pending
         }
     }
+}
+
+extension Color {
+    // Absence states as text on a light or dark background: iOS's green and orange are too pale on white,
+    // so light mode gets darker shades (dark mode keeps the system ones).
+    static let justified = Color(light: 0x1B7F37, dark: 0x30D158)
+    static let unjustified = Color(light: 0xC4281C, dark: 0xFF453A)
+    static let pending = Color(light: 0xB25000, dark: 0xFF9F0A)
 }
 
 /// Notice-board items and teacher notes shown in one list.

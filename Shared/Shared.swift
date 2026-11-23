@@ -66,12 +66,18 @@ extension Color {
     // "Firka-élénk": fresh green, lime, yellow, orange, coral with dark numbers.
     // [grade: (background light, dark, text light, dark)]
     private static let palette: [Int: (UInt32, UInt32, UInt32, UInt32)] = [
-        5: (0x8FD07A, 0x3B7A3A, 0x113D0D, 0xD2F5C8),
+        5: (0x8FD07A, 0x387537, 0x113D0D, 0xD2F5C8),
         4: (0xC9E66E, 0x5E7420, 0x33450A, 0xEAF8B8),
         3: (0xF7D24F, 0x7A6418, 0x4A3800, 0xFFEBA0),
         2: (0xF7AA60, 0x7A4620, 0x5A2606, 0xFFD2AE),
         1: (0xF28A82, 0x7A302C, 0x5C0F0A, 0xFFC4BE),
     ]
+
+    // The Live Activity's colours (ColorTests checks them in both modes).
+    static let liveAccent = Color(light: 0x3A7A0C, dark: 0xA7DC22)
+    /// The bars' empty part: the system's own is near black on the dark card.
+    static let liveTrack = Color(light: 0xCCCCCC, dark: 0x444444)
+    static func liveCard(light: Bool) -> Color { Color(hex: light ? 0xFFFFFF : 0x111111) }
 
     /// The logo's background green, for the main call-to-action (same in both modes, white text like the logo).
     static let firkaLogo = Color(hex: 0x7CA120)

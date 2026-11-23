@@ -12,6 +12,7 @@ Every change starts with a test, so anything that breaks shows up as a failing t
 5. `scripts/test.sh` green before every commit and every install on the phone (`FAST=1` for unit tests only while iterating).
 6. Network code is tested against `FirkaTests/Stub.swift` (fake KRÉTA); tests touching the keychain, cache file or UserDefaults go in the serialized `Global` suite.
 7. Screens get a UI test in `FirkaUITests/` (demo mode, `FIRKA_DEMO=1`); give tapped elements an `accessibilityIdentifier`.
+8. Light and dark mode both: `testContrastInLightAndDarkMode` audits the main screens' contrast in each; own colour pairs (grade badges, absence states, the Live Activity, which UI tests can't reach) go in `FirkaTests/ColorTests.swift`.
 
 Run one suite: `xcodebuild test -scheme Firka -destination 'platform=iOS Simulator,name=<sim>' -only-testing:FirkaTests/<Suite>`
 
