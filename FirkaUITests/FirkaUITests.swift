@@ -64,6 +64,19 @@ final class FirkaUITests: XCTestCase {
         XCTAssertFalse(ma.isEnabled)
     }
 
+    /// The week arrows sit by the title, not above Monday and Friday, so a thumb doesn't hit the wrong one.
+    func testWeekArrowsAreAwayFromTheEdgeDays() {
+        tab("Órarend")
+        XCTAssertTrue(weekTitle.waitForExistence(timeout: 3))
+        let days = app.buttons.matching(identifier: "day")
+        let first = days.element(boundBy: 0).frame, last = days.element(boundBy: days.count - 1).frame
+        let prev = app.buttons["previousWeek"].frame, next = app.buttons["nextWeek"].frame
+        XCTAssertGreaterThan(prev.midX, first.maxX, "the back arrow isn't above Monday")
+        XCTAssertLessThan(next.midX, last.minX, "the forward arrow isn't above the last day")
+        XCTAssertLessThanOrEqual(max(prev.maxY, next.maxY), first.minY, "the arrows don't reach into the day strip")
+        for f in [prev, next] { XCTAssertGreaterThanOrEqual(min(f.width, f.height), 44, "a full-size tap target") }
+    }
+
     /// The lessons start right under the day strip, no empty band between them.
     func testLessonsSitUnderTheDayStrip() {
         tab("Órarend")

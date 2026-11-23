@@ -42,18 +42,19 @@ struct TimetableView: View {
 
     private var weekView: some View {
             VStack(spacing: 0) {
-                HStack {
-                    Button { move(-1) } label: { Image(systemName: "chevron.left") }
+                // arrows by the title, not above the edge days (mis-taps); a fixed title width keeps them in place every week
+                HStack(spacing: 4) {
+                    Button { move(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .accessibilityLabel("Előző hét").accessibilityIdentifier("previousWeek")
-                    Spacer()
                     Text("\(week.hu("MMMd")) – \(week.adding(days: 6).hu("MMMd"))").font(.headline)
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                        .frame(width: 140)
                         .accessibilityIdentifier("weekTitle")
-                    Spacer()
-                    Button { move(1) } label: { Image(systemName: "chevron.right") }
+                    Button { move(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .accessibilityLabel("Következő hét").accessibilityIdentifier("nextWeek")
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 8)
+                .font(.title3.weight(.semibold))
+                .padding(.bottom, 4)
 
                 let testDays = Set(store.data.tests.map { $0.datum.startOfDay })
                 let today = Date().startOfDay
