@@ -24,7 +24,12 @@ enum LessonLive {
             await a.end(nil, dismissalPolicy: .immediate)
         }
 
-        let content = ActivityContent(state: state, staleDate: state.staleDate)
+        var staleDate = state.staleDate
+        #if DEBUG
+        // FIRKA_ACTIVITY_DEMO=stale: already out of date, to see the passive view without waiting for a lesson to end
+        if ProcessInfo.processInfo.environment["FIRKA_ACTIVITY_DEMO"] == "stale" { staleDate = now.addingTimeInterval(-1) }
+        #endif
+        let content = ActivityContent(state: state, staleDate: staleDate)
         if let a = running.first(where: { Calendar.hu.isDate($0.attributes.day, inSameDayAs: now) }) {
             if !a.content.state.sameContent(as: state) { await a.update(content) }
         } else if canStart, ActivityAuthorizationInfo().areActivitiesEnabled, shouldStart(lessons, now: now) {
@@ -61,6 +66,8 @@ enum LessonLive {
     #if DEBUG
     /// FIRKA_ACTIVITY_DEMO=1: a fake day around "now" (2nd lesson running), to see the activity on a weekend
     /// or in the simulator. FIRKA_ACTIVITY_DEMO=break: the same day during the break before the 3rd lesson.
+    /// FIRKA_ACTIVITY_DEMO=stale: the first day, already out of date (the passive view). Run it after =1:
+    /// iOS starts no activity that is out of date, it only updates a running one to it.
     private static func demoDay(_ now: Date) -> [WidgetLesson] {
         let inBreak = ProcessInfo.processInfo.environment["FIRKA_ACTIVITY_DEMO"] == "break"
         let s = now.addingTimeInterval(inBreak ? -47 * 60 : -20 * 60)

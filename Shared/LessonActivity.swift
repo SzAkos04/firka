@@ -34,6 +34,30 @@ extension LessonActivityAttributes.ContentState {
     /// Between two lessons (not before the first held one): the room to go to is what matters.
     var inBreak: Bool { !inLesson && lessons[..<focus].contains { !$0.cancelled } }
 
+    /// Today's lessons that take place (for the passive view's span and count).
+    var held: [WidgetLesson] { lessons.filter { !$0.cancelled } }
+
     /// Same headline and lessons; `since` alone changing needs no update.
     func sameContent(as other: Self) -> Bool { lessons == other.lessons && focus == other.focus && light == other.light }
+}
+
+extension WidgetLesson {
+    /// A name for a narrow column, the way students say it: "Matematika" → "Matek". Otherwise a name of up to
+    /// 8 letters as it is (an own rename too), else its first word, else its start with a dot.
+    var shortSubject: String {
+        let lower = subject.lowercased()
+        if let known = Self.studentNames.first(where: { lower.hasPrefix($0.0) }) { return known.1 }
+        if subject.count <= 8 { return subject }
+        if let first = subject.split(separator: " ").first, first.count <= 8 { return String(first) }
+        return subject.prefix(6) + "."
+    }
+
+    /// KRÉTA's subject names (start, lower case) and what they're called; longer starts first.
+    private static let studentNames: [(String, String)] = [
+        ("magyar nyelv és irodalom", "Magyar"), ("magyar nyelv", "Nyelvtan"), ("magyar irodalom", "Irodalom"),
+        ("matematika", "Matek"), ("történelem", "Töri"), ("földrajz", "Föci"), ("biológia", "Biosz"),
+        ("testnevelés", "Tesi"), ("informatika", "Infó"), ("ének", "Ének"), ("vizuális kultúra", "Rajz"),
+        ("rajz", "Rajz"), ("osztályfőnöki", "Ofő"), ("digitális kultúra", "Digi"), ("természettudomány", "Termtud"),
+        ("mozgókép", "Média"), ("hon- és népismeret", "Honism."), ("állampolgári", "Állampol."),
+    ]
 }

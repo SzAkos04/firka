@@ -44,11 +44,7 @@ private struct LockScreenLessons: View {
 
     var body: some View {
         if stale {
-            // The headline may be outdated; the bars below are always right.
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Mai órák").font(.headline)
-                DayBars(lessons: state.lessons)
-            }
+            PassiveDay(state: state)
         } else if state.inLesson {
             NowAndNext(state: state)
         } else {
@@ -82,9 +78,7 @@ private struct NowAndNext: View {
                 Text("vége \(l.end.time)")
             }
             .font(.caption).foregroundStyle(.secondary)
-            ProgressView(timerInterval: l.start...l.end, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
-                .progressViewStyle(.linear)
-                .tint(Color.liveAccent)
+            LessonBar(lesson: l)
             Divider()
             if let n = state.next {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -150,6 +144,43 @@ private struct Countdown: View {
 }
 
 /// One thin bar per lesson; each fills itself from start to end, no app update needed.
+/// When the app hasn't run since the headline went out of date: nothing that depends on "now" but the bars,
+/// which fill themselves. The filling one is the lesson in progress, with its room underneath.
+private struct PassiveDay: View {
+    let state: LessonActivityAttributes.ContentState
+
+    var body: some View {
+        let held = state.held
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Mai órák").font(.headline)
+                Spacer()
+                if let first = held.first, let last = held.last {
+                    Text("\(first.start.time) – \(last.end.time) · \(held.count) óra")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            HStack(alignment: .top, spacing: 4) {
+                ForEach(state.lessons, id: \.self) { l in
+                    let dim = l.cancelled ? AnyShapeStyle(Color.red.opacity(0.8)) : AnyShapeStyle(.secondary)
+                    VStack(spacing: 3) {
+                        Text(l.number.map(String.init) ?? "").font(.caption2.monospacedDigit()).foregroundStyle(dim)
+                        Text(l.shortSubject).font(.caption2.weight(.semibold)).strikethrough(l.cancelled)
+                            .foregroundStyle(l.cancelled ? dim : AnyShapeStyle(.primary))
+                        Group {
+                            if l.cancelled { Capsule().fill(Color.red.opacity(0.5)) } else { LessonBar(lesson: l) }
+                        }
+                        .frame(height: 5)
+                        Text(l.cancelled ? "elmarad" : l.room ?? "").font(.caption2).foregroundStyle(dim)
+                    }
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+}
+
 private struct DayBars: View {
     let lessons: [WidgetLesson]
 
@@ -161,13 +192,7 @@ private struct DayBars: View {
                         if l.cancelled {
                             Capsule().fill(Color.red.opacity(0.5))  // red like a cancelled lesson in the timetable
                         } else {
-                            ProgressView(timerInterval: l.start...l.end, countsDown: false) {
-                                EmptyView()
-                            } currentValueLabel: {
-                                EmptyView()
-                            }
-                            .progressViewStyle(.linear)
-                            .tint(Color.liveAccent)
+                            LessonBar(lesson: l)
                         }
                     }
                     .frame(height: 5)  // same height for both, so the numbers line up
@@ -178,6 +203,19 @@ private struct DayBars: View {
                 }
             }
         }
+    }
+}
+
+/// A lesson's bar, filling itself from start to end. The system's empty track is near black on the dark card,
+/// so a track of our own sits under it.
+private struct LessonBar: View {
+    let lesson: WidgetLesson
+
+    var body: some View {
+        ProgressView(timerInterval: lesson.start...lesson.end, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
+            .progressViewStyle(.linear)
+            .tint(Color.liveAccent)
+            .background(Capsule().fill(Color.primary.opacity(0.2)))
     }
 }
 

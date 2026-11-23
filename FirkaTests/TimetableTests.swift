@@ -110,6 +110,24 @@ struct TimetableTests {
         #expect(!light.sameContent(as: dark), "switching the mode redraws the activity")
     }
 
+    @Test("passive Live Activity: short subject names the way students say them", arguments: [
+        ("Matematika", "Matek"), ("Történelem", "Töri"), ("Földrajz", "Föci"), ("Biológia", "Biosz"),
+        ("Testnevelés", "Tesi"), ("Informatika", "Infó"), ("Ének-zene", "Ének"), ("Vizuális kultúra", "Rajz"),
+        ("Osztályfőnöki", "Ofő"), ("Digitális kultúra", "Digi"), ("Természettudomány", "Termtud"),
+        ("Magyar nyelv és irodalom", "Magyar"), ("Magyar nyelv", "Nyelvtan"), ("Irodalom", "Irodalom"),
+        ("Fizika", "Fizika"), ("Német 2", "Német 2"), ("Angol nyelv", "Angol"),  // short enough: as it is; else the first word
+        ("Matek", "Matek"), ("Kommunikáció", "Kommun."), ("", ""),  // an own rename; a long unknown one is cut with a dot
+    ])
+    func shortSubject(_ name: String, _ short: String) {
+        #expect(widgetLesson(name, .now).shortSubject == short)
+    }
+
+    @Test("passive Live Activity: the held lessons give the day's span and count")
+    func passiveHeld() {
+        let s = LessonActivityAttributes.ContentState(lessons: day, now: budapest(2026, 11, 23, 8, 10))!
+        #expect(s.held.map(\.subject) == ["A", "C"], "B is cancelled")
+    }
+
     @Test func nextLessonChange() {
         #expect(LessonLive.nextChange(day, after: budapest(2026, 11, 23, 8, 10)) == budapest(2026, 11, 23, 8, 45))
         #expect(LessonLive.nextChange(day, after: budapest(2026, 11, 23, 23)) == nil)
