@@ -4,11 +4,11 @@
 #   scripts/test.sh                      # first available iPhone simulator
 #   SIM="iPhone 17" scripts/test.sh
 #   FAST=1 scripts/test.sh               # unit tests only (seconds instead of minutes; no UI tests)
+# Build products stay in build/ (gitignored) between runs, so only what changed is recompiled.
 set -euo pipefail
 cd ${0:A:h:h}
 SIM=${SIM:-$(xcrun simctl list devices available | grep -m1 -oE 'iPhone[^()]*' | sed 's/ *$//')}
-OUT=$(mktemp -d)
-trap 'rm -rf "$OUT"' EXIT
+OUT=build
 
 echo "== tests on $SIM"
 xcrun simctl boot "$SIM" 2>/dev/null || true   # an already-booted simulator is fine

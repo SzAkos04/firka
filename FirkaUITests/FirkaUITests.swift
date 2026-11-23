@@ -15,29 +15,35 @@ final class FirkaUITests: XCTestCase {
     private func tab(_ name: String) { app.tabBars.buttons[name].firstMatch.tap() }
     private var weekTitle: XCUIElement { app.staticTexts["weekTitle"] }
 
-    /// Lists animate: wait until the query has `n` matches.
+    /// Lists animate: wait until the query has `n` matches. Checks right away first, since XCTest's
+    /// predicate waits look only once a second.
     private func wait(_ q: XCUIElementQuery, count op: String, _ n: Int, _ message: String = "") {
-        let e = expectation(for: NSPredicate(format: "count \(op) \(n)"), evaluatedWith: q)
+        let p = NSPredicate(format: "count \(op) \(n)")
+        if p.evaluate(with: q) { return }
+        let e = expectation(for: p, evaluatedWith: q)
         e.expectationDescription = message
         wait(for: [e], timeout: 5)
     }
 
+    /// `waitForExistence`, but without its first second of waiting when the element is already there.
+    private func shows(_ e: XCUIElement, timeout: TimeInterval = 3) -> Bool { e.exists || e.waitForExistence(timeout: timeout) }
+
     func testEveryTabOpens() {
         XCTAssertTrue(app.staticTexts["Szia, Elek!"].exists || app.staticTexts["Jó reggelt, Elek!"].exists || app.staticTexts["Jó estét, Elek!"].exists)
         tab("Órarend")
-        XCTAssertTrue(weekTitle.waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(weekTitle))
         tab("Jegyek")
-        XCTAssertTrue(app.buttons["Tantárgyak"].waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(app.buttons["Tantárgyak"]))
         tab("Hiányzások")
-        XCTAssertTrue(app.staticTexts["Késés, perc"].waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(app.staticTexts["Késés, perc"]))
         tab("Egyebek")
-        XCTAssertTrue(app.buttons["Beállítások"].waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(app.buttons["Beállítások"]))
     }
 
     /// Changing weeks selects Monday (today's week: today); "Ma" goes back to where the timetable opened, and is off there.
     func testWeekChangeSelectsMondayAndMaGoesBack() {
         tab("Órarend")
-        XCTAssertTrue(weekTitle.waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(weekTitle))
         let opening = weekTitle.label
         let ma = app.navigationBars.buttons["Ma"]
         let days = app.buttons.matching(identifier: "day")
@@ -67,7 +73,7 @@ final class FirkaUITests: XCTestCase {
     /// The week arrows sit by the title, not above Monday and Friday, so a thumb doesn't hit the wrong one.
     func testWeekArrowsAreAwayFromTheEdgeDays() {
         tab("Órarend")
-        XCTAssertTrue(weekTitle.waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(weekTitle))
         let days = app.buttons.matching(identifier: "day")
         let first = days.element(boundBy: 0).frame, last = days.element(boundBy: days.count - 1).frame
         let prev = app.buttons["previousWeek"].frame, next = app.buttons["nextWeek"].frame
@@ -81,8 +87,8 @@ final class FirkaUITests: XCTestCase {
     func testLessonsSitUnderTheDayStrip() {
         tab("Órarend")
         let row = app.buttons.matching(identifier: "lessonRow").firstMatch
-        if !row.waitForExistence(timeout: 3) { app.buttons["nextWeek"].tap() }
-        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        if !shows(row) { app.buttons["nextWeek"].tap() }
+        XCTAssertTrue(shows(row))
         let gap = row.frame.minY - app.buttons.matching(identifier: "day").firstMatch.frame.maxY
         XCTAssertLessThanOrEqual(gap, 24, "gap under the strip: \(gap) pt")
     }
@@ -100,14 +106,14 @@ final class FirkaUITests: XCTestCase {
         ma.tap()
         XCTAssertFalse(ma.isEnabled)
         app.buttons["Hét"].tap()
-        XCTAssertTrue(weekTitle.waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(weekTitle))
     }
 
     func testLiveActivitySwitchFlips() {
         tab("Egyebek")
         app.buttons["Beállítások"].tap()
         let toggle = app.switches["Mai órák a zárolt képernyőn"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(toggle))
         let before = toggle.value as? String
         toggle.switches.firstMatch.tap()
         XCTAssertNotEqual(toggle.value as? String, before, "the switch shows the new setting")
@@ -121,37 +127,35 @@ final class FirkaUITests: XCTestCase {
         hidden.firstMatch.tap()
         XCTAssertEqual(hidden.count, 2)
         app.buttons["Mind felfedése"].tap()
-        let gone = NSPredicate(format: "count == 0")
-        expectation(for: gone, evaluatedWith: hidden)
-        waitForExpectations(timeout: 3)
+        wait(hidden, count: "==", 0, "all revealed")
     }
 
     func testSubjectAndGradeDetail() {
         tab("Jegyek")
         XCTAssertFalse(app.buttons["Bizonyítvány"].exists, "no term grades in the demo: no report card tab")
         let math = app.buttons.matching(NSPredicate(format: "label CONTAINS ', Matematika,'")).firstMatch  // "4,00, Matematika, 5, 5…"
-        for _ in 0..<5 where !math.isHittable { app.swipeUp() }  // the subjects are under the summary
+        for _ in 0..<5 where !(math.exists && math.isHittable) { app.swipeUp(velocity: .slow) }  // under the summary; slow: no fling to wait out
         math.tap()
-        XCTAssertTrue(app.navigationBars["Matematika"].waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(app.navigationBars["Matematika"]))
         app.buttons.matching(NSPredicate(format: "label CONTAINS 'Témazáró'")).firstMatch.tap()
-        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Kovács Anna'")).firstMatch
-            .waitForExistence(timeout: 3), "the grade's teacher on the detail screen")
+        XCTAssertTrue(shows(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Kovács Anna'")).firstMatch),
+                      "the grade's teacher on the detail screen")
     }
 
     func testHideALessonAndShowItAgain() {
         tab("Órarend")
         let rows = app.buttons.matching(identifier: "lessonRow")
-        if !rows.firstMatch.waitForExistence(timeout: 3) { app.buttons["nextWeek"].tap() }  // a free day: use next week's Monday
+        if !shows(rows.firstMatch) { app.buttons["nextWeek"].tap() }  // a free day: use next week's Monday
         let row = rows.firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(row))
         let before = rows.count
-        row.press(forDuration: 1)
+        row.press(forDuration: 0.6)
         app.buttons["Elrejtés…"].tap()
         app.buttons["A tantárgy összes órája"].tap()
         wait(rows, count: "==", before - 1, "the subject's lesson disappears")
         tab("Egyebek")
         app.buttons["Elrejtett órák"].tap()
-        XCTAssertTrue(app.staticTexts["A tantárgy összes órája"].waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(app.staticTexts["A tantárgy összes órája"]))
         app.cells.firstMatch.swipeLeft()
         app.buttons.matching(NSPredicate(format: "label IN {'Delete', 'Törlés'}")).firstMatch.tap()
         tab("Órarend")
@@ -162,20 +166,20 @@ final class FirkaUITests: XCTestCase {
         tab("Egyebek")
         app.buttons["Üzenetek, feljegyzések"].tap()
         app.staticTexts["Szalagavató próba"].tap()
-        XCTAssertTrue(app.staticTexts["Pénteken 14:00-tól próba a tornateremben."].waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(app.staticTexts["Pénteken 14:00-tól próba a tornateremben."]))
         tab("Egyebek")  // tapping the open tab goes back to its start
         app.buttons["Házi feladatok"].tap()
-        XCTAssertTrue(app.staticTexts["Matematika"].waitForExistence(timeout: 3), "the demo homework")
+        XCTAssertTrue(shows(app.staticTexts["Matematika"]), "the demo homework")
         tab("Egyebek")
         app.buttons["Számonkérések"].tap()
-        XCTAssertTrue(app.staticTexts["Írásbeli témazáró · Az Árpád-kor"].waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(app.staticTexts["Írásbeli témazáró · Az Árpád-kor"]))
     }
 
     func testRenameASubject() {
         tab("Egyebek")
         app.buttons["Tantárgyak, tanárok átnevezése"].tap()
         let field = app.textFields["Matematika"]
-        XCTAssertTrue(field.waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(field))
         field.tap()
         field.typeText("Matek")
         tab("Jegyek")
@@ -190,6 +194,6 @@ final class FirkaUITests: XCTestCase {
         app.swipeUp()
         app.buttons["Kijelentkezés"].firstMatch.tap()
         app.alerts.buttons["Kijelentkezés"].tap()
-        XCTAssertTrue(app.buttons["Bejelentkezés"].waitForExistence(timeout: 3))
+        XCTAssertTrue(shows(app.buttons["Bejelentkezés"]))
     }
 }

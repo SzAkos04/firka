@@ -222,6 +222,7 @@ final class AppStore {
         let env = ProcessInfo.processInfo.environment
         if env["FIRKA_FORCE_REFRESH"] != nil { token?.expiry = .distantPast }
         if env["FIRKA_DEMO"] != nil {
+            UIView.setAnimationsEnabled(false)  // UI tests: no waiting for every push and tab switch to finish animating
             Token.delete()
             token = nil
             HiddenLessons.shared.rules = []
