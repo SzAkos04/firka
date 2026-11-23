@@ -81,6 +81,15 @@ struct ScreenLogicTests {
         #expect(GradesLogic.subjects(g).map(\.subject.nev) == ["matematika", "angol", "történelem"])
     }
 
+    @Test("a subject's grade count: the ones in its average, like the overall \"N jegy alapján\"")
+    func subjectGradeCount() throws {
+        let g = try grades(gradeJSON("a", 5, 100), gradeJSON("b", 3, 200),
+                           gradeJSON("c", nil, nil, valueType: "Szoveges", text: "Nem írt"),  // a text grade isn't counted
+                           gradeJSON("d", 4, nil, kind: "felevi_jegy_ertekeles"),            // nor the half-year grade
+                           gradeJSON("t", 4, 100, subject: historyJSON))
+        #expect(GradesLogic.subjects(g).map(\.grades.countedInAverage) == [2, 1])
+    }
+
     @Test("report card column average; nothing yet is a dash")
     func columnAverage() {
         #expect(GradesLogic.columnAverage([5, 4, nil, 4]) == "4,33")

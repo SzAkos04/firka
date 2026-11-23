@@ -20,7 +20,7 @@ struct GradesView: View {
                         AverageBadge(value: grades.overallAverage, size: 56)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Összesített átlag").font(.headline)
-                            Text("\(grades.filter(\.countsInAverage).count) jegy alapján").font(.subheadline).foregroundStyle(.secondary)
+                            Text("\(grades.countedInAverage) jegy alapján").font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
                     if let r = grades.reportCardAverage(store.rounding) {
@@ -108,8 +108,9 @@ struct SubjectView: View {
                 if let a = grades.average {
                     LabeledContent("Várható jegy", value: "\(store.rounding.grade(a))")
                 }
+                LabeledContent("Jegyek száma", value: "\(grades.countedInAverage)")
                 if let c = classAverage {
-                    LabeledContent("Osztályátlag", value: c.hu2)
+                    LabeledContent("Osztályátlag", value: c.hu2).accessibilityIdentifier("subjectClassAverage")
                 }
                 AverageChart(grades: grades, classAverage: classAverage).frame(height: 160)
             }

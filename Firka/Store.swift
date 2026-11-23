@@ -219,6 +219,7 @@ final class AppStore {
         //   FIRKA_FORCE_REFRESH=1  pretend the access token expired (tests token renewal)
         //   FIRKA_HIDE_NEWEST=N    re-hide the N newest grades (tests surprise grades)
         //   FIRKA_DEMO=1           start over in demo mode (UI tests)
+        //   FIRKA_DEMO=noClassAverages  the same without class averages (a school that hides them)
         let env = ProcessInfo.processInfo.environment
         if env["FIRKA_FORCE_REFRESH"] != nil { token?.expiry = .distantPast }
         if env["FIRKA_DEMO"] != nil {
@@ -238,6 +239,7 @@ final class AppStore {
         #if DEBUG
         if env["FIRKA_PROBE"] != nil, let client { Task { await DebugProbe.run(client) } }
         if env["FIRKA_DEMO"] != nil { startDemo() }
+        if env["FIRKA_DEMO"] == "noClassAverages" { data.classAverages = nil; data.save() }
         if let n = env["FIRKA_HIDE_NEWEST"].flatMap(Int.init) {
             seenGrades = Set(data.grades.sorted { $0.keszitesDatuma < $1.keszitesDatuma }.dropLast(n).map(\.uid))
         }

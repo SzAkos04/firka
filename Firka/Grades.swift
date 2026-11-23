@@ -31,6 +31,9 @@ extension Array where Element == Ertekeles {
         return fallback.map(Double.init)
     }
 
+    /// How many of these grades the average is made of ("N jegy alapján", "Jegyek száma").
+    var countedInAverage: Int { filter(\.countsInAverage).count }
+
     /// The weighted average with some made-up 100% grades added ("mi lenne, ha…").
     func average(adding extra: [Int]) -> Double? {
         guard !extra.isEmpty else { return average }

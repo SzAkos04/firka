@@ -33,6 +33,7 @@ final class FirkaUITests: XCTestCase {
         tab("Órarend")
         XCTAssertTrue(shows(weekTitle))
         tab("Jegyek")
+        for _ in 0..<3 where !app.buttons["Tantárgyak"].exists { app.swipeUp(velocity: .slow) }  // the picker is under the summary
         XCTAssertTrue(shows(app.buttons["Tantárgyak"]))
         tab("Hiányzások")
         XCTAssertTrue(shows(app.staticTexts["Késés, perc"]))
@@ -155,13 +156,34 @@ final class FirkaUITests: XCTestCase {
         wait(hidden, count: "==", 0, "all revealed")
     }
 
-    func testSubjectAndGradeDetail() {
+    /// Jegyek › Matematika.
+    private func openMath() {
         tab("Jegyek")
-        XCTAssertFalse(app.buttons["Bizonyítvány"].exists, "no term grades in the demo: no report card tab")
         let math = app.buttons.matching(NSPredicate(format: "label CONTAINS ', Matematika,'")).firstMatch  // "4,00, Matematika, 5, 5…"
         for _ in 0..<5 where !(math.exists && math.isHittable) { app.swipeUp(velocity: .slow) }  // under the summary; slow: no fling to wait out
         math.tap()
         XCTAssertTrue(shows(app.navigationBars["Matematika"]))
+    }
+
+    /// The subject page with the class average (the demo), and without one (a school that hides them): still works.
+    func testSubjectWithAndWithoutClassAverage() {
+        openMath()
+        let classAverage = app.descendants(matching: .any)["subjectClassAverage"]
+        XCTAssertTrue(shows(classAverage), "the class average next to yours")
+        XCTAssertTrue(app.staticTexts["Jegyek száma"].exists)
+        app.terminate()
+        app.launchEnvironment["FIRKA_DEMO"] = "noClassAverages"
+        app.launch()
+        openMath()
+        XCTAssertTrue(shows(app.staticTexts["Jegyek száma"]), "the page is all there")
+        XCTAssertFalse(classAverage.exists, "no class average row")
+    }
+
+    func testSubjectAndGradeDetail() {
+        tab("Jegyek")
+        XCTAssertFalse(app.buttons["Bizonyítvány"].exists, "no term grades in the demo: no report card tab")
+        tab("Kezdőlap")
+        openMath()
         app.buttons.matching(NSPredicate(format: "label CONTAINS 'Témazáró'")).firstMatch.tap()
         XCTAssertTrue(shows(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Kovács Anna'")).firstMatch),
                       "the grade's teacher on the detail screen")

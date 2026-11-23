@@ -63,6 +63,8 @@ extension Snapshot {
                                     cim: "Szalagavató próba", tartalom: "<p>Pénteken 14:00-tól próba a tornateremben.</p>")],
             notes: [Feljegyzes(uid: "f0", cim: "Dicséret", datum: now.adding(days: -6), keszitoTanarNeve: teachers[4],
                                tartalom: "Kiemelkedő munka a fizika versenyen.", tipus: nud("Dicseret", "Dicséret"))],
+            // every subject but PE: a subject without one happens in real data too
+            classAverages: Dictionary(uniqueKeysWithValues: zip(subjects.dropLast().map(\.uid), [3.92, 4.21, 3.85, 3.6, 3.4, 4.05, 3.75])),
             updated: now)
     }
 }
