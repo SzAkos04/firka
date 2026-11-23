@@ -1,6 +1,6 @@
 import Foundation
 
-// Grade math, kept UI-free so Tests/main.swift can check it on the Mac.
+// Grade math, kept UI-free so it can be unit tested.
 
 extension Ertekeles {
     var isClassic: Bool { ertekFajta.nev == "Osztalyzat" }

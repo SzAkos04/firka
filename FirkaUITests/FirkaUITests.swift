@@ -78,8 +78,28 @@ final class FirkaUITests: XCTestCase {
         tab("Órarend")
         app.buttons["Hónap"].tap()
         XCTAssertFalse(weekTitle.exists)
+        let ma = app.navigationBars.buttons["Ma"]
+        XCTAssertFalse(ma.isEnabled, "already on today, like the week view")
+        app.buttons["Következő hónap"].tap()
+        XCTAssertTrue(ma.isEnabled)
+        app.buttons["Előző hónap"].tap()
+        app.buttons["Előző hónap"].tap()
+        ma.tap()
+        XCTAssertFalse(ma.isEnabled)
         app.buttons["Hét"].tap()
         XCTAssertTrue(weekTitle.waitForExistence(timeout: 3))
+    }
+
+    func testLiveActivitySwitchFlips() {
+        tab("Egyebek")
+        app.buttons["Beállítások"].tap()
+        let toggle = app.switches["Mai órák a zárolt képernyőn"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 3))
+        let before = toggle.value as? String
+        toggle.switches.firstMatch.tap()
+        XCTAssertNotEqual(toggle.value as? String, before, "the switch shows the new setting")
+        toggle.switches.firstMatch.tap()
+        XCTAssertEqual(toggle.value as? String, before)
     }
 
     func testSurpriseGradesReveal() {

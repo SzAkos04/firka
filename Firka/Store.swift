@@ -299,8 +299,6 @@ final class AppStore {
             let new = try await Snapshot.fetch(client, old: data)
             guard self.client === client else { return }  // logged out (or switched) while downloading
             log.info("refresh ok: \(new.grades.count, privacy: .public) grades, \(new.lessons.count, privacy: .public) lessons, \(new.absences.count, privacy: .public) absences")
-            // Foreground: the user sees changes on screen, so only record them as seen.
-            Notifier.process(old: data, new: new, post: false)
             data = new
             data.save()
             seedSeenGrades()
@@ -379,8 +377,8 @@ enum Notifier {
         var lines: [String]
     }
 
-    static func process(old: Snapshot, new: Snapshot, post: Bool) {
-        guard post else { return }
+    /// Background refresh only: in the foreground the user sees the changes on screen.
+    static func post(old: Snapshot, new: Snapshot) {
         for a in changes(old: old, new: new, now: Date(), enabled: enabled, surprise: Pref.on(Pref.surpriseGrades),
                          isHidden: HiddenLessons.shared.isHidden) {
             send(a)
@@ -475,7 +473,7 @@ enum Background {
         guard let token = Token.load(), let old = Snapshot.load() else { return false }
         do {
             let new = try await Snapshot.fetch(KretaClient(token: token), old: old)
-            Notifier.process(old: old, new: new, post: true)
+            Notifier.post(old: old, new: new)
             new.save()
             await LessonLive.sync(new.widgetLessons, canStart: false)
             return true

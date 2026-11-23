@@ -145,10 +145,12 @@ struct MonthTimetable: View {
             Section {
                 HStack {
                     Button { change(-1) } label: { Image(systemName: "chevron.left") }
+                        .accessibilityLabel("Előző hónap")
                     Spacer()
                     Text(month.hu("yMMMM").capitalizedFirst).font(.headline)
                     Spacer()
                     Button { change(1) } label: { Image(systemName: "chevron.right") }
+                        .accessibilityLabel("Következő hónap")
                 }
                 .buttonStyle(.borderless)
 
@@ -204,7 +206,10 @@ struct MonthTimetable: View {
                 .listRowBackground(Color.clear)
             }
         }
-        .toolbar { Button("Ma") { month = Date().startOfMonth; selected = Date().startOfDay } }
+        .toolbar {
+            Button("Ma") { month = Date().startOfMonth; selected = Date().startOfDay }
+                .disabled(month == Date().startOfMonth && selected == Date().startOfDay)
+        }
         .refreshable { await store.refresh(); await load() }
         .task(id: month) { await load() }
         .onChange(of: selected) { showHidden = false }

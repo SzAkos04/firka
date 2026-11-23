@@ -115,7 +115,7 @@ struct HiddenLessonsView: View {
             ForEach(h.rules) { r in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(Renames.shared.subject(r.subject))
-                    Text(describe(r)).font(.caption).foregroundStyle(.secondary)
+                    Text(r.summary).font(.caption).foregroundStyle(.secondary)
                 }
             }
             .onDelete { i in
@@ -132,6 +132,4 @@ struct HiddenLessonsView: View {
         .navigationTitle("Elrejtett órák")
         .toolbar { if !h.rules.isEmpty { EditButton() } }
     }
-
-    private func describe(_ r: HideRule) -> String { r.summary }
 }

@@ -11,6 +11,8 @@ struct ScreenLogicTests {
         ("Teszt Elek Ákos", 7, "Jó reggelt, Elek!"),
         ("Teszt Elek", 12, "Szia, Elek!"),
         ("Teszt Elek", 20, "Jó estét, Elek!"),
+        ("Teszt Elek", 2, "Jó estét, Elek!"),  // after midnight it isn't morning yet
+        ("Teszt Elek", 4, "Jó reggelt, Elek!"),
         ("Elek", 12, "Szia, Elek!"),
         ("", 12, "Firka"),
     ])
@@ -35,6 +37,13 @@ struct ScreenLogicTests {
 
         let nothing = HomeLogic.today([], now: monday, isHidden: hidden)
         #expect(nothing.current == nil && nothing.next == nil && nothing.lessons.isEmpty && nothing.day == monday)
+    }
+
+    @Test("minutes left in a lesson, rounded up: 45:00 is 45, 44:59 is 45, 30 seconds is 1", arguments: [
+        (2700.0, 45), (2699, 45), (2640, 44), (30, 1),
+    ])
+    func minutesLeft(_ seconds: Double, _ minutes: Int) {
+        #expect(HomeLogic.minutesLeft(until: monday.addingTimeInterval(seconds), now: monday) == minutes)
     }
 
     @Test("homework and tests: upcoming soonest first, past latest first; due today is upcoming")
@@ -98,11 +107,14 @@ struct ScreenLogicTests {
         #expect(HideRule(.weekly, for: lesson("y", day: monday, from: 480, number: nil)).summary == "Minden hétfő · 08:00")
     }
 
-    @Test("login: the code from KRÉTA's redirect, nothing from other pages")
+    @Test("login: the code from KRÉTA's redirect, only for our own login (state), nothing from other pages")
     func loginCode() {
-        #expect(Kreta.code(fromRedirect: URL(string: "https://mobil.e-kreta.hu/ellenorzo-student/prod/oauthredirect?code=AB12&state=x")!) == "AB12")
-        #expect(Kreta.code(fromRedirect: URL(string: "https://mobil.e-kreta.hu/ellenorzo-student/prod/oauthredirect?error=access_denied")!) == nil)
-        #expect(Kreta.code(fromRedirect: URL(string: "https://idp.e-kreta.hu/Account/Login?code=AB12")!) == nil)
+        let redirect = "https://mobil.e-kreta.hu/ellenorzo-student/prod/oauthredirect"
+        #expect(Kreta.code(fromRedirect: URL(string: redirect + "?code=AB12&state=x")!, state: "x") == "AB12")
+        #expect(Kreta.code(fromRedirect: URL(string: redirect + "?code=AB12&state=y")!, state: "x") == nil, "a code from another login attempt")
+        #expect(Kreta.code(fromRedirect: URL(string: redirect + "?code=AB12")!, state: "x") == nil, "no state: not our login")
+        #expect(Kreta.code(fromRedirect: URL(string: redirect + "?error=access_denied&state=x")!, state: "x") == nil)
+        #expect(Kreta.code(fromRedirect: URL(string: "https://idp.e-kreta.hu/Account/Login?code=AB12&state=x")!, state: "x") == nil)
         #expect(Kreta.isRedirect(URL(string: "https://mobil.e-kreta.hu/ellenorzo-student/prod/oauthredirect?error=x")!))
     }
 

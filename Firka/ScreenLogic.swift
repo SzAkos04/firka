@@ -6,7 +6,7 @@ enum HomeLogic {
     static func greeting(name: String, hour: Int) -> String {
         let parts = name.split(separator: " ").map(String.init)
         let first = parts.count >= 2 ? parts[1] : parts.first ?? ""
-        let hello = hour < 9 ? "Jó reggelt" : hour < 18 ? "Szia" : "Jó estét"
+        let hello = (4..<9).contains(hour) ? "Jó reggelt" : (9..<18).contains(hour) ? "Szia" : "Jó estét"
         return first.isEmpty ? "Firka" : "\(hello), \(first)!"
     }
 
@@ -18,6 +18,9 @@ enum HomeLogic {
         let day = (lessons.first { $0.vegIdopont > now }?.kezdetIdopont ?? now).startOfDay
         return (current, next, day, lessons.filter { $0.kezdetIdopont.startOfDay == day })
     }
+
+    /// "Még N perc" on the lesson card.
+    static func minutesLeft(until end: Date, now: Date) -> Int { Int((end.timeIntervalSince(now) / 60).rounded(.up)) }
 
     /// Homework/tests: from today on soonest first, before today latest first.
     static func split<T>(_ items: [T], today: Date, date: (T) -> Date) -> (upcoming: [T], past: [T]) {
@@ -98,10 +101,11 @@ extension Kreta {
     /// KRÉTA's login ends on this page; the web view stops there.
     static func isRedirect(_ url: URL) -> Bool { url.path == redirectPath }
 
-    /// The authorization code from the redirect page's URL.
-    static func code(fromRedirect url: URL) -> String? {
-        guard isRedirect(url) else { return nil }
-        return URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "code" }?.value
+    /// The authorization code from the redirect page's URL, if it carries our login's `state` (OAuth's CSRF check).
+    static func code(fromRedirect url: URL, state: String) -> String? {
+        guard isRedirect(url), let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems,
+              items.contains(where: { $0.name == "state" && $0.value == state }) else { return nil }
+        return items.first { $0.name == "code" }?.value
     }
 }
 

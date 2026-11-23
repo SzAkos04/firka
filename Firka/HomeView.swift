@@ -101,7 +101,7 @@ struct NowCard: View {
             if lesson.kezdetIdopont <= now {
                 let total = lesson.vegIdopont.timeIntervalSince(lesson.kezdetIdopont)
                 ProgressView(value: min(now.timeIntervalSince(lesson.kezdetIdopont), total), total: total)
-                Text("Még \(Int(lesson.vegIdopont.timeIntervalSince(now) / 60) + 1) perc · vége \(lesson.vegIdopont.time)")
+                Text("Még \(HomeLogic.minutesLeft(until: lesson.vegIdopont, now: now)) perc · vége \(lesson.vegIdopont.time)")
                     .font(.subheadline).foregroundStyle(.secondary)
             } else {
                 Text("\(lesson.kezdetIdopont.time) – \(lesson.vegIdopont.time) · \(lesson.kezdetIdopont, style: .relative) múlva")

@@ -137,15 +137,38 @@ extension String {
     /// `<script>`/`<style>` blocks with their content: code, not text.
     static let codeBlocks = "<(script|style)[^>]*>[\\s\\S]*?</(script|style)\\s*>"
 
+    /// `&eacute;`, `&#337;`, `&#x171;` → é, ő, ű, in one pass (so `&amp;lt;` stays `&lt;`); unknown names stay as they are.
+    var decodingEntities: String {
+        replacing(Self.entity) { m in
+            let name = m.output[1].substring ?? ""
+            if name.hasPrefix("#") {
+                let hex = name.dropFirst().first.map { $0 == "x" || $0 == "X" } ?? false
+                if let n = UInt32(name.dropFirst(hex ? 2 : 1), radix: hex ? 16 : 10), let u = Unicode.Scalar(n) { return String(u) }
+            } else if let v = Self.namedEntities[String(name)] {
+                return v
+            }
+            return String(m.output[0].substring ?? "")
+        }
+    }
+
+    private static let entity = try! Regex("&(#[xX]?[0-9a-fA-F]+|[a-zA-Z]+);")
+    /// What HTML editors write in Hungarian texts, lower and upper case.
+    private static let namedEntities: [String: String] = {
+        var e = ["nbsp": " ", "quot": "\"", "apos": "'", "lt": "<", "gt": ">", "amp": "&", "ndash": "–", "mdash": "—",
+                 "hellip": "…", "bdquo": "„", "ldquo": "“", "rdquo": "”", "lsquo": "‘", "rsquo": "’", "raquo": "»", "laquo": "«"]
+        for (k, v) in ["aacute": "á", "eacute": "é", "iacute": "í", "oacute": "ó", "uacute": "ú", "ouml": "ö", "uuml": "ü",
+                       "odblac": "ő", "udblac": "ű"] {
+            e[k] = v
+            e[k.capitalizedFirst] = v.uppercased()
+        }
+        return e
+    }()
+
     var strippingTags: String {
         replacingOccurrences(of: Self.codeBlocks, with: "", options: [.regularExpression, .caseInsensitive])
             .replacingOccurrences(of: "<br\\s*/?>|</(p|li|div|h\\d)>", with: "\n", options: [.regularExpression, .caseInsensitive])
             .replacingOccurrences(of: "<[^>]+>|<[^>]*$", with: "", options: .regularExpression)  // also a tag cut off at the end
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&amp;", with: "&")
+            .decodingEntities
             .replacingOccurrences(of: "\\s*\n\\s*", with: "\n", options: .regularExpression)  // no blank lines in previews
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }

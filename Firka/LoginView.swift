@@ -57,7 +57,7 @@ struct LoginSheet: View {
 
     var body: some View {
         NavigationStack {
-            LoginWebView(url: pkce.loginURL, onLoaded: { pageLoaded = true }) { code in
+            LoginWebView(url: pkce.loginURL, state: pkce.state, onLoaded: { pageLoaded = true }) { code in
                 exchanging = true
                 Task {
                     do {
@@ -80,10 +80,11 @@ struct LoginSheet: View {
 
 struct LoginWebView: UIViewRepresentable {
     let url: URL
+    let state: String  // the login's own: a redirect carrying another one isn't ours
     let onLoaded: () -> Void
     let onCode: (String) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(onLoaded: onLoaded, onCode: onCode) }
+    func makeCoordinator() -> Coordinator { Coordinator(state: state, onLoaded: onLoaded, onCode: onCode) }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -97,10 +98,13 @@ struct LoginWebView: UIViewRepresentable {
     func updateUIView(_ uiView: WKWebView, context: Context) {}
 
     final class Coordinator: NSObject, WKNavigationDelegate {
+        let state: String
         let onLoaded: () -> Void
         let onCode: (String) -> Void
         private var handled = false
-        init(onLoaded: @escaping () -> Void, onCode: @escaping (String) -> Void) { self.onLoaded = onLoaded; self.onCode = onCode }
+        init(state: String, onLoaded: @escaping () -> Void, onCode: @escaping (String) -> Void) {
+            self.state = state; self.onLoaded = onLoaded; self.onCode = onCode
+        }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { onLoaded() }
 
@@ -108,7 +112,7 @@ struct LoginWebView: UIViewRepresentable {
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard let url = action.request.url, Kreta.isRedirect(url) else { return decisionHandler(.allow) }
             decisionHandler(.cancel)
-            if !handled, let code = Kreta.code(fromRedirect: url) {
+            if !handled, let code = Kreta.code(fromRedirect: url, state: state) {
                 handled = true
                 onCode(code)
             }

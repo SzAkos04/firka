@@ -30,6 +30,9 @@ struct MiscTests {
         ("Kedves Tanulók! <strong style=\"color: rgba(34, 3", "Kedves Tanulók!"),  // cut off by KRÉTA's 100-character preview
         ("sor<br>  \n\n  másik<br/>", "sor\nmásik"),
         ("<style>p { color: red }</style><p>Szia</p><SCRIPT type=\"x\">alert(1)</SCRIPT>", "Szia"),  // code isn't text
+        ("H&aacute;zi &eacute;s &ouml;r&ouml;m, &Eacute;va &Uuml;", "Házi és öröm, Éva Ü"),  // editors write accents as entities
+        ("&#337;sz &#x171;r &apos;x&apos; &ndash; v&eacute;ge&hellip;", "ősz űr 'x' – vége…"),
+        ("&amp;lt; &unknown;", "&lt; &unknown;"),  // decoded once; unknown names stay
     ])
     func stripTags(_ html: String, _ text: String) {
         #expect(html.strippingTags == text)

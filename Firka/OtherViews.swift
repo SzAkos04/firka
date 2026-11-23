@@ -203,6 +203,7 @@ struct SettingsView: View {
     @Environment(AppStore.self) private var store
     @State private var confirmLogout = false
     @State private var notifStatus: UNAuthorizationStatus?
+    @AppStorage(Pref.liveActivity) private var liveActivity = true
 
     var body: some View {
         Form {
@@ -220,12 +221,8 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle("Mai órák a zárolt képernyőn", isOn: Binding(
-                    get: { LessonLive.enabled },
-                    set: { on in
-                        UserDefaults.standard.set(on, forKey: Pref.liveActivity)
-                        Task { await LessonLive.sync(store.data.widgetLessons, canStart: true) }
-                    }))
+                Toggle("Mai órák a zárolt képernyőn", isOn: $liveActivity)
+                    .onChange(of: liveActivity) { Task { await LessonLive.sync(store.data.widgetLessons, canStart: true) } }
             } header: {
                 Text("Élő tevékenység")
             } footer: {
