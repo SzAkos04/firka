@@ -31,8 +31,8 @@ struct ColorTests {
     }
 
     @Test("absence states read on the list and on the counters", arguments: [UIUserInterfaceStyle.light, .dark])
-    func absenceStates(_ style: UIUserInterfaceStyle) {
-        for c in [Color.justified, .unjustified, .pending] {
+    func absenceStatesAndLessonChanges(_ style: UIUserInterfaceStyle) {
+        for c in [Color.justified, .unjustified, .pending, .substituted, .cancelled] {
             #expect(contrast(c, Color(.systemBackground), style) >= 4.5)
             #expect(contrast(c, Color(.secondarySystemGroupedBackground), style) >= 4.5)
         }

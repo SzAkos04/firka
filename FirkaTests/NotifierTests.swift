@@ -1,5 +1,7 @@
 import Foundation
 import Testing
+import UIKit
+import UserNotifications
 @testable import Firka
 
 @Suite("Notifications: what counts as new")
@@ -77,5 +79,16 @@ struct NotifierTests {
         var new = snapshot()
         new.inbox = try decode(#"[{"azonosito":1,"tipus":{"kod":"BEERKEZETT"},"uzenet":{"azonosito":1,"kuldesDatum":"2026-11-18T09:50:50","targy":"Régi"}}]"#)
         #expect(changes(old, new).isEmpty)
+    }
+
+    @Test("why notifications can't arrive, if something blocks them")
+    func blocked() {
+        let ok = Notifier.blocker(auth: .authorized, refresh: .available, lowPower: false)
+        #expect(ok == nil)
+        #expect(Notifier.blocker(auth: .denied, refresh: .available, lowPower: false)?.contains("ki vannak kapcsolva") == true)
+        #expect(Notifier.blocker(auth: .notDetermined, refresh: .available, lowPower: false) != nil)
+        #expect(Notifier.blocker(auth: .authorized, refresh: .denied, lowPower: false)?.contains("Háttérben frissítés") == true)
+        #expect(Notifier.blocker(auth: .authorized, refresh: .restricted, lowPower: false) != nil)
+        #expect(Notifier.blocker(auth: .authorized, refresh: .available, lowPower: true)?.contains("Alacsony fogyasztású") == true)
     }
 }

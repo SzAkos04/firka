@@ -52,6 +52,9 @@ extension Color {
     static let justified = Color(light: 0x1B7F37, dark: 0x30D158)
     static let unjustified = Color(light: 0xC4281C, dark: 0xFF453A)
     static let pending = Color(light: 0xB25000, dark: 0xFF9F0A)
+    // Timetable changes as text, same reasoning: a substitution in orange, a cancelled lesson in red.
+    static let substituted = pending
+    static let cancelled = unjustified
 }
 
 /// Notice-board items and teacher notes shown in one list.

@@ -203,21 +203,34 @@ struct SettingsView: View {
     @Environment(AppStore.self) private var store
     @State private var confirmLogout = false
     @State private var notifStatus: UNAuthorizationStatus?
+    @Environment(\.scenePhase) private var phase
     @AppStorage(Pref.liveActivity) private var liveActivity = true
 
     var body: some View {
         Form {
             Section {
                 ForEach(Notifier.kinds, id: \.key) { k in NotifToggle(key: k.key, label: k.label) }
-                if notifStatus == .denied {
-                    Button("Értesítések engedélyezése a Beállításokban") {
-                        UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!)
+                if let notifStatus, let why = Notifier.blocker(auth: notifStatus, refresh: UIApplication.shared.backgroundRefreshStatus,
+                                                               lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled) {
+                    Label { Text(why) } icon: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
+                        .accessibilityIdentifier("notificationBlocker")
+                    Button(notifStatus == .notDetermined ? "Értesítések engedélyezése" : "Megnyitás a Beállításokban") {
+                        Task {
+                            if notifStatus == .notDetermined {
+                                _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+                                self.notifStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+                            } else {
+                                await UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!)
+                            }
+                        }
                     }
                 }
+                LabeledContent("Utolsó háttérfrissítés",
+                               value: (UserDefaults.standard.object(forKey: Pref.lastBackgroundRun) as? Date)?.hu("MMMd. HH:mm") ?? "még nem volt")
             } header: {
                 Text("Értesítések")
             } footer: {
-                Text("Az iOS dönti el, milyen gyakran frissülhet az app a háttérben (általában néhányszor óránként, ha gyakran használod). Az alacsony fogyasztású mód kikapcsolja.")
+                Text("Értesítés akkor jön, ha az iOS a háttérben frissíti a Firkát. Hogy milyen gyakran, azt az iOS dönti el (ha gyakran használod, néhányszor óránként). Ha az appváltóban felfelé húzva bezárod, addig nem frissül, amíg újra meg nem nyitod.")
             }
 
             Section {
@@ -268,7 +281,8 @@ struct SettingsView: View {
             }
         }
         .navigationTitle("Beállítások")
-        .task { notifStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus }
+        // again on return from the iOS Settings
+        .task(id: phase) { notifStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus }
         .alert("Biztosan kijelentkezel?", isPresented: $confirmLogout) {
             Button("Mégse", role: .cancel) {}
             Button("Kijelentkezés", role: .destructive) { store.logout() }

@@ -374,6 +374,15 @@ enum Notifier {
 
     static func enabled(_ key: String) -> Bool { Pref.on(key) }
 
+    /// What stops notifications from arriving at all, in words for the settings screen; nil if nothing does.
+    static func blocker(auth: UNAuthorizationStatus, refresh: UIBackgroundRefreshStatus, lowPower: Bool) -> String? {
+        if auth == .denied { return "Az értesítések ki vannak kapcsolva a Firkának az iOS Beállításokban." }
+        if auth == .notDetermined { return "A Firka még nem kapott engedélyt értesítések küldésére." }
+        if refresh != .available { return "A Háttérben frissítés ki van kapcsolva, így a Firka nem tud új jegyeket keresni, amíg nincs megnyitva." }
+        if lowPower { return "Alacsony fogyasztású módban az iOS nem frissíti az appokat a háttérben." }
+        return nil
+    }
+
     struct Alert: Equatable {
         var id: String
         var title: String
@@ -473,6 +482,7 @@ enum Background {
     }
 
     private static func run() async -> Bool {
+        UserDefaults.standard.set(Date(), forKey: Pref.lastBackgroundRun)  // shown in Settings: does iOS run us at all?
         guard let token = Token.load(), let old = Snapshot.load() else { return false }
         do {
             let new = try await Snapshot.fetch(KretaClient(token: token), old: old)
@@ -481,6 +491,7 @@ enum Background {
             await LessonLive.sync(new.widgetLessons, canStart: false)
             return true
         } catch {
+            log.error("background refresh failed: \(String(describing: error), privacy: .public)")
             return false
         }
     }

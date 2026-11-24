@@ -31,7 +31,7 @@ struct HomeView: View {
 
         List {
             if let err = store.error {
-                Label(err, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).font(.footnote)
+                Label(err, systemImage: "exclamationmark.triangle").foregroundStyle(Color.pending).font(.footnote)
             }
 
             NewGradesSection()
@@ -96,7 +96,7 @@ struct NowCard: View {
                 if let room = lesson.teremNeve { Text(room).font(.headline).foregroundStyle(.secondary) }
             }
             if let sub = lesson.helyettesTanarNeve?.renamedTeacher {
-                Label("Helyettesít: \(sub)", systemImage: "person.2.fill").font(.subheadline).foregroundStyle(.orange)
+                Label("Helyettesít: \(sub)", systemImage: "person.2.fill").font(.subheadline).foregroundStyle(Color.substituted)
             }
             if lesson.kezdetIdopont <= now {
                 let total = lesson.vegIdopont.timeIntervalSince(lesson.kezdetIdopont)
@@ -128,7 +128,7 @@ struct LessonRow: View {
                 Text(lesson.title)
                     .font(.body.weight(active ? .bold : .regular))
                     .strikethrough(lesson.isCancelled)
-                    .foregroundStyle(lesson.isCancelled ? .red : lesson.helyettesTanarNeve != nil ? .orange : .primary)
+                    .foregroundStyle(lesson.isCancelled ? Color.cancelled : lesson.helyettesTanarNeve != nil ? Color.substituted : .primary)
                 Text([(lesson.helyettesTanarNeve ?? lesson.tanarNeve)?.renamedTeacher, lesson.teremNeve].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -212,7 +212,7 @@ struct LessonDetail: View {
                 if let n = lesson.oraszam { LabeledContent("Óraszám", value: "\(n).") }
                 if let r = lesson.teremNeve { LabeledContent("Terem", value: r) }
                 if let t = lesson.tanarNeve { LabeledContent("Tanár", value: t.renamedTeacher) }
-                if let s = lesson.helyettesTanarNeve { LabeledContent("Helyettes", value: s.renamedTeacher).foregroundStyle(.orange) }
+                if let s = lesson.helyettesTanarNeve { LabeledContent("Helyettes", value: s.renamedTeacher).foregroundStyle(Color.substituted) }
                 if let a = lesson.allapot?.leiras { LabeledContent("Állapot", value: a) }
                 if let p = lesson.tanuloJelenlet?.leiras { LabeledContent("Jelenlét", value: p) }
             }
