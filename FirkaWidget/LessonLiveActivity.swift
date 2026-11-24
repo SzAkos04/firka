@@ -207,15 +207,20 @@ private struct DayBars: View {
 }
 
 /// A lesson's bar, filling itself from start to end. The system's empty track is near black on the dark card,
-/// so a track of our own sits under it.
+/// so a track of our own sits under it. The system bar is thinner than ours and showed as a line along its middle:
+/// stretched taller than our track and cut to its shape, it covers it edge to edge.
 private struct LessonBar: View {
     let lesson: WidgetLesson
 
     var body: some View {
-        ProgressView(timerInterval: lesson.start...lesson.end, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
-            .progressViewStyle(.linear)
-            .tint(Color.liveAccent)
-            .background(Capsule().fill(Color.liveTrack))
+        Capsule().fill(Color.liveTrack)
+            .overlay {
+                ProgressView(timerInterval: lesson.start...lesson.end, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
+                    .progressViewStyle(.linear)
+                    .tint(Color.liveAccent)
+                    .scaleEffect(x: 1, y: 4)
+            }
+            .clipShape(Capsule())
     }
 }
 
