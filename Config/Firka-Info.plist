@@ -6,6 +6,19 @@
 	<false/>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(APP_ID)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>firka</string>
+			</array>
+		</dict>
+	</array>
+	<key>FirkaPushServer</key>
+	<string>$(PUSH_SERVER)</string>
 	<key>FirkaAppGroup</key>
 	<string>group.$(APP_ID)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>

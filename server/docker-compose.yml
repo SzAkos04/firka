@@ -1,0 +1,39 @@
+# Firka's notifications from the server (NTFY_PUSH_PLAN.md).
+# ntfy is served on the tailnet by: sudo tailscale serve --bg --https=8445 http://127.0.0.1:8086
+# and the poller's settings API by:  sudo tailscale serve --bg --https=8446 http://127.0.0.1:8087
+# Sign the poller in to KRÉTA: docker compose run --rm push node login.mjs
+# .env (not in git):
+#   NTFY_BASE_URL = https://<host>.ts.net:8445   the address the ntfy app subscribes with
+#   NTFY_TOPIC    = firka-<random>              the topic it subscribes to
+#   OWNER_LOGIN   = the Tailscale login allowed to send settings
+services:
+  ntfy:
+    image: binwiederhier/ntfy:v2.11.0
+    command: serve
+    environment:
+      NTFY_BASE_URL: ${NTFY_BASE_URL}
+    restart: unless-stopped
+    ports: ["127.0.0.1:8086:80"]
+    volumes:
+      - ./ntfy/server.yml:/etc/ntfy/server.yml:ro
+      - ./ntfy/data/cache:/var/cache/ntfy
+      - ./ntfy/data/lib:/var/lib/ntfy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://localhost/v1/health | grep -q true"]
+      interval: 60s
+      timeout: 5s
+
+  push:
+    build: ./push
+    restart: unless-stopped
+    depends_on: [ntfy]
+    ports: ["127.0.0.1:8087:8087"]
+    environment:
+      TZ: Europe/Budapest
+      DATA_DIR: /data
+      NTFY_URL: http://ntfy
+      NTFY_TOPIC: ${NTFY_TOPIC}
+      PORT: 8087
+      OWNER_LOGIN: ${OWNER_LOGIN}
+    # token.json (KRÉTA session), state.json (ids seen), publish-token (ntfy), prefs.json (optional)
+    volumes: ["./data:/data"]

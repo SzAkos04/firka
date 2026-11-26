@@ -127,3 +127,13 @@ extension Renames {
         search.isEmpty || name.localizedCaseInsensitiveContains(search) || (custom ?? "").localizedCaseInsensitiveContains(search)
     }
 }
+
+/// The app's tabs, and the links that open them: firka://grades etc. (the server's notifications carry one).
+enum AppTab: String {
+    case home, timetable, grades, absences, more
+
+    init?(url: URL) {
+        guard url.scheme == "firka", let host = url.host() else { return nil }
+        self.init(rawValue: host)
+    }
+}

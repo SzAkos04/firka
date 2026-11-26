@@ -205,12 +205,30 @@ struct SettingsView: View {
     @State private var notifStatus: UNAuthorizationStatus?
     @Environment(\.scenePhase) private var phase
     @AppStorage(Pref.liveActivity) private var liveActivity = true
+    @AppStorage(Pref.serverPush) private var serverPush = false
+    @State private var serverStatus: Result<ServerPush.Status, Error>?
 
     var body: some View {
         Form {
             Section {
+                if ServerPush.base != nil {
+                    Toggle("Értesítések a szerverről", isOn: $serverPush)
+                        .accessibilityIdentifier("serverPushToggle")
+                        .onChange(of: serverPush) { Task { await ServerPush.sync() } }
+                }
                 ForEach(Notifier.kinds, id: \.key) { k in NotifToggle(key: k.key, label: k.label) }
-                if let notifStatus, let why = Notifier.blocker(auth: notifStatus, refresh: UIApplication.shared.backgroundRefreshStatus,
+                if serverPush, ServerPush.base != nil {
+                    switch serverStatus {
+                    case .success(let st) where !st.loggedIn:
+                        Label("A szerver nincs bejelentkezve a KRÉTA-ba", systemImage: "exclamationmark.triangle.fill")
+                    case .success(let st):
+                        LabeledContent("Szerver utolsó lekérdezése", value: st.lastPoll?.hu("MMMd. HH:mm") ?? "még nem volt")
+                    case .failure:
+                        Label("A szerver nem érhető el (Tailscale be van kapcsolva?)", systemImage: "exclamationmark.triangle.fill")
+                    case nil:
+                        LabeledContent("Szerver utolsó lekérdezése", value: "…")
+                    }
+                } else if let notifStatus, let why = Notifier.blocker(auth: notifStatus, refresh: UIApplication.shared.backgroundRefreshStatus,
                                                                lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled) {
                     Label { Text(why) } icon: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
                         .accessibilityIdentifier("notificationBlocker")
@@ -225,12 +243,18 @@ struct SettingsView: View {
                         }
                     }
                 }
-                LabeledContent("Utolsó háttérfrissítés",
-                               value: (UserDefaults.standard.object(forKey: Pref.lastBackgroundRun) as? Date)?.hu("MMMd. HH:mm") ?? "még nem volt")
+                if !serverPush {
+                    LabeledContent("Utolsó háttérfrissítés",
+                                   value: (UserDefaults.standard.object(forKey: Pref.lastBackgroundRun) as? Date)?.hu("MMMd. HH:mm") ?? "még nem volt")
+                }
             } header: {
                 Text("Értesítések")
             } footer: {
-                Text("Értesítés akkor jön, ha az iOS a háttérben frissíti a Firkát. Hogy milyen gyakran, azt az iOS dönti el (ha gyakran használod, néhányszor óránként). Ha az appváltóban felfelé húzva bezárod, addig nem frissül, amíg újra meg nem nyitod.")
+                if serverPush, ServerPush.base != nil {
+                    Text("A saját szervered néhány percenként megnézi a KRÉTÁ-t, és az ntfy appon keresztül értesít. A Firka ilyenkor nem küld saját értesítést, csak a fenti beállításokat, az átnevezéseket és a rejtett órákat küldi el a szervernek.")
+                } else {
+                    Text("Értesítés akkor jön, ha az iOS a háttérben frissíti a Firkát. Hogy milyen gyakran, azt az iOS dönti el (ha gyakran használod, néhányszor óránként). Ha az appváltóban felfelé húzva bezárod, addig nem frissül, amíg újra meg nem nyitod.")
+                }
             }
 
             Section {
@@ -283,6 +307,11 @@ struct SettingsView: View {
         .navigationTitle("Beállítások")
         // again on return from the iOS Settings
         .task(id: phase) { notifStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus }
+        .task(id: serverPush) {
+            guard serverPush, let base = ServerPush.base else { return }
+            do { serverStatus = .success(try await ServerPush.status(from: base)) } catch { serverStatus = .failure(error) }
+        }
+        .onDisappear { Task { await ServerPush.sync() } }  // renames, toggles: the server should know before the next poll
         .alert("Biztosan kijelentkezel?", isPresented: $confirmLogout) {
             Button("Mégse", role: .cancel) {}
             Button("Kijelentkezés", role: .destructive) { store.logout() }

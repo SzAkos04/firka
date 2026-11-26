@@ -391,10 +391,16 @@ enum Notifier {
 
     /// Background refresh only: in the foreground the user sees the changes on screen.
     static func post(old: Snapshot, new: Snapshot) {
-        for a in changes(old: old, new: new, now: Date(), enabled: enabled, surprise: Pref.on(Pref.surpriseGrades),
-                         isHidden: HiddenLessons.shared.isHidden) {
+        for a in toPost(old: old, new: new, server: ServerPush.active, enabled: enabled, surprise: Pref.on(Pref.surpriseGrades),
+                        isHidden: HiddenLessons.shared.isHidden) {
             send(a)
         }
+    }
+
+    /// What the phone itself announces: nothing while the owner's server sends the notifications (ServerPush).
+    static func toPost(old: Snapshot, new: Snapshot, server: Bool, enabled: (String) -> Bool, surprise: Bool,
+                       isHidden: (Ora) -> Bool) -> [Alert] {
+        server ? [] : changes(old: old, new: new, now: Date(), enabled: enabled, surprise: surprise, isHidden: isHidden)
     }
 
     /// What's new between two syncs, as notifications. Pure, so the rules are testable.

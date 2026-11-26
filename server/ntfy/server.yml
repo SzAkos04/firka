@@ -1,0 +1,10 @@
+# base-url comes from NTFY_BASE_URL in .env: the address the phone subscribes with, exactly.
+# iOS gets instant delivery only through ntfy.sh's APNs relay; ntfy.sh sees a message id and a topic hash, not the text.
+upstream-base-url: "https://ntfy.sh"
+listen-http: ":80"
+behind-proxy: true
+cache-file: "/var/cache/ntfy/cache.db"
+cache-duration: "24h"
+auth-file: "/var/lib/ntfy/user.db"
+auth-default-access: "deny-all"
+enable-signup: false

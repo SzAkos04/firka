@@ -32,6 +32,7 @@ struct FirkaApp: App {
         .onChange(of: phase, initial: true) { _, p in
             guard !Self.underUnitTests else { return }
             if p == .active, store.loggedIn { Task { await store.refreshIfStale() } }
+            if p != .inactive, store.loggedIn, !store.isDemo { Task { await ServerPush.sync() } }  // settings changed meanwhile
             if p == .background, store.loggedIn, !store.isDemo { Background.schedule() }
         }
     }
@@ -40,15 +41,17 @@ struct FirkaApp: App {
 struct MainTabs: View {
     @Environment(AppStore.self) private var store
     @Environment(\.scenePhase) private var phase
+    @State private var tab = AppTab.home
 
     var body: some View {
-        TabView {
-            Tab("Kezdőlap", systemImage: "house") { HomeView() }
-            Tab("Órarend", systemImage: "calendar") { TimetableView() }
-            Tab("Jegyek", systemImage: "chart.line.uptrend.xyaxis") { GradesView() }
-            Tab("Hiányzások", systemImage: "person.badge.clock") { AbsencesView() }
-            Tab("Egyebek", systemImage: "ellipsis.circle") { MoreView() }
+        TabView(selection: $tab) {
+            Tab("Kezdőlap", systemImage: "house", value: .home) { HomeView() }
+            Tab("Órarend", systemImage: "calendar", value: .timetable) { TimetableView() }
+            Tab("Jegyek", systemImage: "chart.line.uptrend.xyaxis", value: .grades) { GradesView() }
+            Tab("Hiányzások", systemImage: "person.badge.clock", value: .absences) { AbsencesView() }
+            Tab("Egyebek", systemImage: "ellipsis.circle", value: AppTab.more) { MoreView() }
         }
+        .onOpenURL { if let t = AppTab(url: $0) { tab = t } }  // a tapped server notification
         // While the app is open, move the Live Activity headline along at lesson changes.
         .task {
             while !Task.isCancelled {

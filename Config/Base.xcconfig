@@ -6,4 +6,8 @@
 
 APP_ID = hu.firkaios.app
 
+// Optional: the address of your own server/push (notifications from a server, NTFY_PUSH_PLAN.md). In Local.xcconfig,
+// with "/$()/" for "//" (xcconfig reads // as a comment): PUSH_SERVER = https:/$()/host.example.ts.net:8446
+PUSH_SERVER =
+
 #include? "Local.xcconfig"

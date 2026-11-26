@@ -11,6 +11,7 @@ enum Pref {
     static let renameTeachers = "renameTeachers"
     static let timetableMonth = "timetableMonth"
     static let lastBackgroundRun = "lastBackgroundRun"
+    static let serverPush = "serverPush"
     static func rounding(_ n: Int) -> String { "rounding\(n)" }
 
     /// A Bool setting that defaults to on.

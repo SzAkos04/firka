@@ -5,7 +5,7 @@ import Testing
 /// Tests that share global state (the network stub, the keychain, the cache file, UserDefaults) run one at a time.
 @Suite(.serialized) enum Global {}
 
-/// A fake KRÉTA: every request to *.e-kreta.hu goes to `Stub.route` instead of the internet.
+/// A fake KRÉTA (and push.test, a fake of server/push): every request to *.e-kreta.hu goes to `Stub.route` instead of the internet.
 /// URLSession.shared picks up registered protocol classes, so the app's code runs unchanged.
 final class Stub: URLProtocol {
     struct Reply { var status = 200; var body = "[]" }
@@ -29,7 +29,7 @@ final class Stub: URLProtocol {
         route = { _ in Reply(status: 404, body: "") }
     }
 
-    override class func canInit(with r: URLRequest) -> Bool { r.url?.host?.hasSuffix("e-kreta.hu") == true }
+    override class func canInit(with r: URLRequest) -> Bool { r.url?.host?.hasSuffix("e-kreta.hu") == true || r.url?.host == "push.test" }
     override class func canonicalRequest(for r: URLRequest) -> URLRequest { r }
     override func stopLoading() {}
 
