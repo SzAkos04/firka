@@ -202,3 +202,29 @@ extension Array where Element == Grade {
         return (rows, upcoming)
     }
 }
+
+// MARK: - University (Neptun): credits instead of weights
+
+/// A term's averages as Hungarian universities count them (51/2007. Korm. rendelet):
+/// súlyozott tanulmányi átlag, kreditindex, korrigált kreditindex.
+struct CreditAverages: Equatable {
+    var taken = 0, completed = 0
+    var average: Double?
+    var creditIndex = 0.0
+    var correctedCreditIndex = 0.0
+
+    /// One grade per subject of the term, with its credits; no grade yet counts as taken, not completed.
+    init(_ grades: [Grade]) {
+        var points = 0
+        for g in grades {
+            let credit = g.credit ?? 0
+            taken += credit
+            guard let n = g.number, n >= 2 else { continue }  // 1 (elégtelen) is a fail
+            completed += credit
+            points += credit * n
+        }
+        average = completed > 0 ? Double(points) / Double(completed) : nil
+        creditIndex = Double(points) / 30
+        correctedCreditIndex = taken > 0 ? creditIndex * Double(completed) / Double(taken) : 0
+    }
+}

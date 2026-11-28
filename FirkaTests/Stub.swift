@@ -10,7 +10,10 @@ import Testing
 final class Stub: URLProtocol {
     /// `until`: hold the answer back (off the stub's thread, so other requests go on) until it says true, at most 3 s.
     /// `location`: with a 3xx status, a redirect there (URLSession follows it).
-    struct Reply { var status = 200; var body = "[]"; var until: (@Sendable () -> Bool)? = nil; var location: String? = nil }
+    struct Reply {
+        var status = 200; var body = "[]"; var until: (@Sendable () -> Bool)? = nil; var location: String? = nil
+        var headers: [String: String] = [:]
+    }
 
     nonisolated(unsafe) static var route: (URLRequest) -> Reply = { _ in Reply(status: 404, body: "") }
     nonisolated(unsafe) private static var log: [URLRequest] = []
@@ -48,7 +51,7 @@ final class Stub: URLProtocol {
             return
         }
         nonisolated(unsafe) let answer = { [self] in
-            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: r.url!, statusCode: reply.status, httpVersion: nil, headerFields: nil)!,
+            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: r.url!, statusCode: reply.status, httpVersion: nil, headerFields: reply.headers)!,
                                 cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: Data(reply.body.utf8))
             client?.urlProtocolDidFinishLoading(self)
