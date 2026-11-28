@@ -4,7 +4,7 @@ struct TimetableView: View {
     @Environment(AppStore.self) private var store
     @State private var week = TimetableNav.openingDay(today: Date().startOfDay, lessonDays: []).startOfWeek
     @State private var day = TimetableNav.openingDay(today: Date().startOfDay, lessonDays: [])
-    @State private var lessons: [Ora] = []
+    @State private var lessons: [Lesson] = []
     @State private var loading = false
     @AppStorage(Pref.timetableMonth) private var monthMode = false
     @State private var showHidden = false
@@ -36,8 +36,8 @@ struct TimetableView: View {
                     .frame(width: 170)
                 }
             }
-            .navigationDestination(for: Ora.self) { LessonDetail(lesson: $0) }
-            .navigationDestination(for: Szamonkeres.self) { TestDetail(test: $0) }
+            .navigationDestination(for: Lesson.self) { LessonDetail(lesson: $0) }
+            .navigationDestination(for: AnnouncedTest.self) { TestDetail(test: $0) }
         }
     }
 
@@ -57,7 +57,7 @@ struct TimetableView: View {
                 .font(.title3.weight(.semibold))
                 .padding(.bottom, 4)
 
-                let testDays = Set(store.data.tests.map { $0.datum.startOfDay })
+                let testDays = Set(store.data.tests.map { $0.date.startOfDay })
                 let today = Date().startOfDay
                 HStack(spacing: 0) {
                     ForEach(days, id: \.self) { d in
@@ -86,14 +86,14 @@ struct TimetableView: View {
     }
 
     private var dayList: some View {
-        let items = lessons.filter { $0.kezdetIdopont.startOfDay == day }.sorted { $0.kezdetIdopont < $1.kezdetIdopont }
+        let items = lessons.filter { $0.start.startOfDay == day }.sorted { $0.start < $1.start }
         let events = items.filter(\.isEvent)
         let real = items.filter { !$0.isEvent }
         let hidden = real.filter(HiddenLessons.shared.isHidden)
-        let tests = store.data.tests.filter { $0.datum.startOfDay == day }
+        let tests = store.data.tests.filter { $0.date.startOfDay == day }
         return List {
             ForEach(events) { e in
-                Label(e.nev ?? e.tipus.leiras ?? "Esemény", systemImage: "flag.fill").foregroundStyle(.purple)
+                Label(e.name ?? "Esemény", systemImage: "flag.fill").foregroundStyle(.purple)
             }
             ForEach(tests) { t in NavigationLink(value: t) { TestRow(test: t) } }
             ForEach(showHidden ? real : real.filter { !hidden.contains($0) }) { l in
@@ -137,7 +137,7 @@ struct MonthTimetable: View {
     @Environment(AppStore.self) private var store
     @State private var month = Date().startOfMonth
     @State private var selected = Date().startOfDay
-    @State private var lessons: [Ora] = []
+    @State private var lessons: [Lesson] = []
     @State private var loading = false
     @State private var showHidden = false
 
@@ -145,8 +145,8 @@ struct MonthTimetable: View {
     private var leadingBlanks: Int { TimetableNav.leadingBlanks(month: month) }
 
     var body: some View {
-        let byDay = Dictionary(grouping: lessons) { $0.kezdetIdopont.startOfDay }
-        let tests = Dictionary(grouping: store.data.tests) { $0.datum.startOfDay }
+        let byDay = Dictionary(grouping: lessons) { $0.start.startOfDay }
+        let tests = Dictionary(grouping: store.data.tests) { $0.date.startOfDay }
         let cols = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
         List {
@@ -184,9 +184,9 @@ struct MonthTimetable: View {
             }
 
             Section(selected.hu("MMMMd EEEE").capitalizedFirst) {
-                let items = (byDay[selected] ?? []).sorted { $0.kezdetIdopont < $1.kezdetIdopont }
+                let items = (byDay[selected] ?? []).sorted { $0.start < $1.start }
                 ForEach(items.filter(\.isEvent)) { e in
-                    Label(e.nev ?? e.tipus.leiras ?? "Esemény", systemImage: "flag.fill").foregroundStyle(.purple)
+                    Label(e.name ?? "Esemény", systemImage: "flag.fill").foregroundStyle(.purple)
                 }
                 ForEach(tests[selected] ?? []) { t in NavigationLink(value: t) { TestRow(test: t) } }
                 let real = items.filter { !$0.isEvent }
@@ -235,27 +235,27 @@ struct MonthTimetable: View {
         defer { loading = false }
         let end = Calendar.hu.date(byAdding: .month, value: 1, to: month)!
         let weeks = stride(from: 0, to: 6, by: 1).map { month.startOfWeek.adding(days: 7 * $0) }.filter { $0 < end }
-        let all = await withTaskGroup(of: [Ora].self) { g in
+        let all = await withTaskGroup(of: [Lesson].self) { g in
             for w in weeks { g.addTask { await store.lessons(week: w) } }
-            var all: [Ora] = []
+            var all: [Lesson] = []
             for await w in g { all += w }
             return all
         }
         guard !Task.isCancelled else { return }  // paged on to another month
-        lessons = all.filter { $0.kezdetIdopont >= month && $0.kezdetIdopont < end }
+        lessons = all.filter { $0.start >= month && $0.start < end }
     }
 }
 
 private struct DayCell: View {
     let date: Date
-    let lessons: [Ora]
+    let lessons: [Lesson]
     let hasTest: Bool
     let selected: Bool
     let today: Bool
 
     var body: some View {
         let real = lessons.filter { !$0.isEvent && !HiddenLessons.shared.isHidden($0) }
-        let changed = real.contains { $0.isCancelled || $0.helyettesTanarNeve != nil }
+        let changed = real.contains { $0.cancelled || $0.substitute != nil }
         let event = lessons.contains { $0.isEvent }
         VStack(spacing: 3) {
             Text(date.hu("d"))

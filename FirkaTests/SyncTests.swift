@@ -87,9 +87,9 @@ extension Global {
             await s.refresh()
             #expect(s.error == nil)
             #expect(s.data.studentName == "Teszt Elek" && s.data.schoolName == "Teszt Gimnázium")
-            #expect(s.data.grades.map(\.uid) == ["g1", "g2"])
-            #expect(s.data.lessons.map(\.uid) == ["l1", "l2"], "this week and next week, once each")
-            #expect(s.data.inbox?.map(\.azonosito) == [1], "received and not deleted only")
+            #expect(s.data.grades.map(\.id) == ["g1", "g2"])
+            #expect(s.data.lessons.map(\.id) == ["l1", "l2"], "this week and next week, once each")
+            #expect(s.data.messageList.filter { $0.source == "p" }.map(\.id) == ["p1"], "received and not deleted only")
             #expect(s.data.classAverages == ["1,MAT": 3.87], "active groups only, no zero averages")
             #expect(Snapshot.load()?.grades.count == 2)
             #expect(FileManager.default.fileExists(atPath: Shared.widgetFile.path))
@@ -108,12 +108,12 @@ extension Global {
             fake.grades.append(gradeJSON("g3", 4, 100, date: "2026-11-20T08:00:00Z"))
             Stub.start(fake.reply)
             await s.refresh()
-            #expect(s.hiddenGrades.map(\.uid) == ["g3"])
-            #expect(!s.visibleGrades.contains { $0.uid == "g3" }, "hidden also from the averages")
+            #expect(s.hiddenGrades.map(\.id) == ["g3"])
+            #expect(!s.visibleGrades.contains { $0.id == "g3" }, "hidden also from the averages")
             let g3 = s.hiddenGrades[0]
             s.reveal(g3)
-            #expect(s.hiddenGrades.isEmpty && s.visibleGrades.contains { $0.uid == "g3" })
-            #expect(s.newGradeRows.map(\.uid) == ["g3"] && s.revealNotes["g3"] != nil, "stays in the list with its note")
+            #expect(s.hiddenGrades.isEmpty && s.visibleGrades.contains { $0.id == "g3" })
+            #expect(s.newGradeRows.map(\.id) == ["g3"] && s.revealNotes["g3"] != nil, "stays in the list with its note")
             s.surpriseGrades = false
             s.surpriseGrades = true
             #expect(s.hiddenGrades.isEmpty, "switching it on only hides grades that come later")
@@ -123,7 +123,7 @@ extension Global {
         func softFailure() async throws {
             var old = Snapshot()
             old.studentName = "Teszt Elek"
-            old.absences = try decode(#"[{"Uid":"77","Tantargy":\#(subjectJSON),"Datum":"2025-11-09T23:00:00Z","IgazolasAllapota":"Igazolt"}]"#)
+            old.absences = try absences(#"[{"Uid":"77","Tantargy":\#(subjectJSON),"Datum":"2025-11-09T23:00:00Z","IgazolasAllapota":"Igazolt"}]"#)
             old.classAverages = ["1,MAT": 4.1]
             old.updated = Date().addingTimeInterval(-3600)
             var fake = FakeKreta()
@@ -131,7 +131,7 @@ extension Global {
             let s = store(cache: old, fake)
             await s.refresh()
             #expect(s.error == nil)
-            #expect(s.data.absences.map(\.uid) == ["77"] && s.data.classAverages == ["1,MAT": 4.1])
+            #expect(s.data.absences.map(\.id) == ["77"] && s.data.classAverages == ["1,MAT": 4.1])
             #expect(s.data.grades.count == 2)
         }
 
@@ -140,12 +140,12 @@ extension Global {
             var old = Snapshot()
             old.studentName = "Teszt Elek"
             old.updated = Date().addingTimeInterval(-3600)
-            old.inboxBodies = ["9": "megnyitva közben"]
+            old.messageBodies = ["9": "megnyitva közben"]
             _ = store(cache: old)
             #expect(await Background.run())
             let saved = try #require(Snapshot.load())
             #expect(saved.grades.count == 2 && saved.updated! > old.updated!)
-            #expect(saved.inboxBodies?["9"] == "megnyitva közben")
+            #expect(saved.messageBodies?["9"] == "megnyitva közben")
             #expect(UserDefaults.standard.object(forKey: Pref.lastBackgroundRun) != nil)
 
             Token.delete()
@@ -162,7 +162,7 @@ extension Global {
             let s = store(cache: old, fake)
             await s.refresh()
             #expect(s.error == nil)
-            #expect(s.data.inbox == nil)
+            #expect(!s.data.messageSources.contains("p"))
         }
 
         @Test("grades or the timetable failing fails the sync and keeps everything as it was", arguments: ["Ertekelesek", "OrarendElemek", "TanuloAdatlap"])
@@ -235,11 +235,11 @@ extension Global {
             var fake = FakeKreta()
             fake.lessons = [lessonJSON("far", start: monday.adding(days: 21).addingTimeInterval(8 * 3600))]
             let s = store(cache: c, fake)
-            #expect(await s.lessons(week: monday).map(\.uid) == ["cached"])
+            #expect(await s.lessons(week: monday).map(\.id) == ["cached"])
             #expect(await s.lessons(week: monday.adding(days: 7)).isEmpty)
             #expect(Stub.requests.isEmpty)
-            #expect(await s.lessons(week: monday.adding(days: 21)).map(\.uid) == ["far"])
-            #expect(await s.lessons(week: monday.adding(days: 21)).map(\.uid) == ["far"])
+            #expect(await s.lessons(week: monday.adding(days: 21)).map(\.id) == ["far"])
+            #expect(await s.lessons(week: monday.adding(days: 21)).map(\.id) == ["far"])
             #expect(Stub.requests.count == 1)
         }
 
@@ -252,9 +252,9 @@ extension Global {
             var fake = FakeKreta()
             fake.lessons = [lessonJSON("next", start: monday.adding(days: 7).addingTimeInterval(8 * 3600))]
             let s = store(cache: c, fake)
-            #expect(await s.lessons(week: monday.adding(days: -7)).map(\.uid) == ["old"])
+            #expect(await s.lessons(week: monday.adding(days: -7)).map(\.id) == ["old"])
             #expect(Stub.requests.isEmpty)
-            #expect(await s.lessons(week: monday.adding(days: 7)).map(\.uid) == ["next"])
+            #expect(await s.lessons(week: monday.adding(days: 7)).map(\.id) == ["next"])
         }
 
         @Test("hiding or renaming a lesson tells the server at once, when it sends the notifications")
@@ -287,12 +287,12 @@ extension Global {
         func attachment() async throws {
             let s = store()
             Stub.start { r in r.url?.path.hasSuffix("/77") == true ? .init(body: "%PDF-1.4") : .init(status: 404, body: "") }
-            let a = Csatolmany(azonosito: 77, fajlNev: "../Hírlevél.pdf")
+            let a = Attachment(kreta: Csatolmany(azonosito: 77, fajlNev: "../Hírlevél.pdf"))
             let file = try await s.download(a)
             #expect(file.lastPathComponent == ".._Hírlevél.pdf" && file.deletingLastPathComponent().lastPathComponent == "77")
             #expect(try String(contentsOf: file, encoding: .utf8) == "%PDF-1.4")
             #expect(try await s.download(a) == file && Stub.requests.count == 1, "the second open comes from the cache")
-            await #expect(throws: KretaError.self) { try await s.download(Csatolmany(azonosito: 78, fajlNev: "x.pdf")) }
+            await #expect(throws: KretaError.self) { try await s.download(Attachment(kreta: Csatolmany(azonosito: 78, fajlNev: "x.pdf"))) }
             s.logout()
             #expect(!FileManager.default.fileExists(atPath: file.path), "logout clears downloaded files")
         }
@@ -305,7 +305,7 @@ extension Global {
             #expect(try await s.fullMessage("p1") == "Teljes szöveg")
             #expect(try await s.fullMessage("p1") == "Teljes szöveg")
             #expect(Stub.paths() == ["/api/v1/kommunikacio/postaladaelemek/1"])
-            #expect(Snapshot.load()?.inboxBodies?["1"] == "Teljes szöveg")
+            #expect(Snapshot.load()?.messageBodies?["p1"] == "Teljes szöveg")
             #expect(try await s.fullMessage("n5") == nil, "notice-board items have their full text already")
         }
 

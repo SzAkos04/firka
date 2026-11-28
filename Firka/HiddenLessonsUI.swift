@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Swipe left / long-press on a lesson row: hide it (asking for which scope), or show a hidden one again.
 struct HideLessonActions: ViewModifier {
-    let lesson: Ora
+    let lesson: Lesson
     @Environment(AppStore.self) private var store
     @State private var asking = false
 
@@ -36,22 +36,22 @@ struct HideLessonActions: ViewModifier {
 }
 
 extension View {
-    func hideLessonActions(_ lesson: Ora) -> some View { modifier(HideLessonActions(lesson: lesson)) }
-    func hideLessonDialog(_ lesson: Ora, isPresented: Binding<Bool>) -> some View {
+    func hideLessonActions(_ lesson: Lesson) -> some View { modifier(HideLessonActions(lesson: lesson)) }
+    func hideLessonDialog(_ lesson: Lesson, isPresented: Binding<Bool>) -> some View {
         modifier(HideLessonDialog(lesson: lesson, isPresented: isPresented))
     }
 }
 
 /// "Which lessons?" sheet shared by the row actions and the lesson detail button.
 struct HideLessonDialog: ViewModifier {
-    let lesson: Ora
+    let lesson: Lesson
     @Binding var isPresented: Bool
     @Environment(AppStore.self) private var store
 
     func body(content: Content) -> some View {
         content.confirmationDialog("\(lesson.title) elrejtése", isPresented: $isPresented, titleVisibility: .visible) {
-            Button("Csak ez az óra (\(lesson.kezdetIdopont.hu("MMMd")))") { apply { HiddenLessons.shared.hide(.once, lesson) } }
-            Button("Minden héten: \(lesson.kezdetIdopont.hu("EEEE")) \(lesson.oraszam.map { "\($0). óra" } ?? lesson.kezdetIdopont.time)") {
+            Button("Csak ez az óra (\(lesson.start.hu("MMMd")))") { apply { HiddenLessons.shared.hide(.once, lesson) } }
+            Button("Minden héten: \(lesson.start.hu("EEEE")) \(lesson.number.map { "\($0). óra" } ?? lesson.start.time)") {
                 apply { HiddenLessons.shared.hide(.weekly, lesson) }
             }
             Button("A tantárgy összes órája") { apply { HiddenLessons.shared.hide(.subject, lesson) } }
@@ -69,7 +69,7 @@ struct HideLessonDialog: ViewModifier {
 
 /// Button on the lesson detail screen.
 struct HideLessonButton: View {
-    let lesson: Ora
+    let lesson: Lesson
     @Environment(AppStore.self) private var store
     @State private var asking = false
 

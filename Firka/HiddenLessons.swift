@@ -17,21 +17,21 @@ struct HideRule: Codable, Hashable, Identifiable {
     var slot: String?     // once/weekly: the lesson number, or the start time if there is none
     var id: Self { self }
 
-    init(_ kind: Kind, for o: Ora) {
+    init(_ kind: Kind, for o: Lesson) {
         self.kind = kind
         subject = o.subjectKey
         switch kind {
         case .once: day = o.dayKey; slot = o.slotKey
-        case .weekly: weekday = HiddenLessons.calendar.component(.weekday, from: o.kezdetIdopont); slot = o.slotKey
+        case .weekly: weekday = HiddenLessons.calendar.component(.weekday, from: o.start); slot = o.slotKey
         case .subject: break
         }
     }
 
-    func matches(_ o: Ora) -> Bool {
+    func matches(_ o: Lesson) -> Bool {
         guard !o.isEvent, o.subjectKey == subject else { return false }
         switch kind {
         case .once: return o.dayKey == day && o.slotKey == slot
-        case .weekly: return HiddenLessons.calendar.component(.weekday, from: o.kezdetIdopont) == weekday && o.slotKey == slot
+        case .weekly: return HiddenLessons.calendar.component(.weekday, from: o.start) == weekday && o.slotKey == slot
         case .subject: return true
         }
     }
@@ -48,10 +48,10 @@ final class HiddenLessons {
         rules = UserDefaults.standard.data(forKey: Pref.hiddenLessons).flatMap { try? JSONDecoder().decode([HideRule].self, from: $0) } ?? []
     }
 
-    func isHidden(_ o: Ora) -> Bool { rules.contains { $0.matches(o) } }
-    func hide(_ kind: HideRule.Kind, _ o: Ora) { if !isHidden(o) { rules.append(HideRule(kind, for: o)) } }
+    func isHidden(_ o: Lesson) -> Bool { rules.contains { $0.matches(o) } }
+    func hide(_ kind: HideRule.Kind, _ o: Lesson) { if !isHidden(o) { rules.append(HideRule(kind, for: o)) } }
     /// Shows the lesson again by dropping every rule that hides it.
-    func unhide(_ o: Ora) { rules.removeAll { $0.matches(o) } }
+    func unhide(_ o: Lesson) { rules.removeAll { $0.matches(o) } }
 
     static let calendar: Calendar = {
         var c = Calendar(identifier: .gregorian)
@@ -72,9 +72,8 @@ final class HiddenLessons {
     }()
 }
 
-extension Ora {
-    var isEvent: Bool { tipus.nev == "TanevRendjeEsemeny" }
-    var subjectKey: String { let n = tantargy?.nev ?? nev ?? ""; return n.prefix(1).uppercased() + n.dropFirst() }
-    var slotKey: String { oraszam.map(String.init) ?? HiddenLessons.timeFormat.string(from: kezdetIdopont) }
-    var dayKey: String { HiddenLessons.dayFormat.string(from: kezdetIdopont) }
+extension Lesson {
+    var subjectKey: String { let n = subject?.raw ?? name ?? ""; return n.prefix(1).uppercased() + n.dropFirst() }
+    var slotKey: String { number.map(String.init) ?? HiddenLessons.timeFormat.string(from: start) }
+    var dayKey: String { HiddenLessons.dayFormat.string(from: start) }
 }

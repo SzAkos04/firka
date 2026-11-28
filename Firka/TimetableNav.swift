@@ -4,8 +4,8 @@ import Foundation
 /// `lessonDays`: the (start of) days that have real lessons, not just school-calendar events.
 enum TimetableNav {
     /// The days with real lessons, for `lessonDays`.
-    static func lessonDays(_ lessons: [Ora]) -> Set<Date> {
-        Set(lessons.filter { !$0.isEvent }.map { $0.kezdetIdopont.startOfDay })
+    static func lessonDays(_ lessons: [Lesson]) -> Set<Date> {
+        Set(lessons.filter { !$0.isEvent }.map { $0.start.startOfDay })
     }
 
     /// Monday–Friday of `week`, plus a weekend day when it has lessons.

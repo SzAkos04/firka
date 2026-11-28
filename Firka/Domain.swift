@@ -61,6 +61,8 @@ struct Grade: Codable, Identifiable, Hashable {
     var topic: String?
     var mode: String?
     var teacher: String?
+    /// The school system's name for the kind ("Évközi jegy/értékelés", "Félévi jegy").
+    var kindText: String?
 }
 
 struct Absence: Codable, Identifiable, Hashable {

@@ -1,18 +1,18 @@
 import Foundation
 
 /// What the screens show, computed without SwiftUI so it's testable. The views only lay it out.
-extension Ora {
+extension Lesson {
     /// In progress at `now` (a cancelled one never is).
-    func isOn(at now: Date) -> Bool { kezdetIdopont <= now && vegIdopont > now && !isCancelled }
+    func isOn(at now: Date) -> Bool { start <= now && end > now && !cancelled }
 
     /// The test announced for this lesson: KRÉTA's link, or (when it's missing) one on the same day in the same
     /// subject, for this lesson number if the test has one.
-    func announcedTest(in tests: [Szamonkeres]) -> Szamonkeres? {
-        if let uid = bejelentettSzamonkeresUid, let t = tests.first(where: { $0.uid == uid }) { return t }
-        guard let subject = tantargy?.uid else { return nil }
+    func announcedTest(in tests: [AnnouncedTest]) -> AnnouncedTest? {
+        if let uid = testID, let t = tests.first(where: { $0.id == uid }) { return t }
+        guard let subject = subject?.id else { return nil }
         return tests.first {
-            $0.tantargy.uid == subject && $0.datum.startOfDay == kezdetIdopont.startOfDay
-                && ($0.orarendiOraOraszama == nil || $0.orarendiOraOraszama == oraszam)
+            $0.subject.id == subject && $0.date.startOfDay == start.startOfDay
+                && ($0.lessonNumber == nil || $0.lessonNumber == number)
         }
     }
 }
@@ -27,19 +27,19 @@ enum HomeLogic {
     }
 
     /// The lesson in progress, the next one, and today's lessons if any are left, otherwise the next school day's.
-    static func today(_ all: [Ora], now: Date, isHidden: (Ora) -> Bool) -> (current: Ora?, next: Ora?, day: Date, lessons: [Ora]) {
-        let lessons = all.filter { !$0.isEvent && !isHidden($0) }.sorted { $0.kezdetIdopont < $1.kezdetIdopont }
+    static func today(_ all: [Lesson], now: Date, isHidden: (Lesson) -> Bool) -> (current: Lesson?, next: Lesson?, day: Date, lessons: [Lesson]) {
+        let lessons = all.filter { !$0.isEvent && !isHidden($0) }.sorted { $0.start < $1.start }
         let current = lessons.first { $0.isOn(at: now) }
-        let next = lessons.first { $0.kezdetIdopont > now && !$0.isCancelled }
-        let day = (lessons.first { $0.vegIdopont > now }?.kezdetIdopont ?? now).startOfDay
-        return (current, next, day, lessons.filter { $0.kezdetIdopont.startOfDay == day })
+        let next = lessons.first { $0.start > now && !$0.cancelled }
+        let day = (lessons.first { $0.end > now }?.start ?? now).startOfDay
+        return (current, next, day, lessons.filter { $0.start.startOfDay == day })
     }
 
     /// "Még N perc" on the lesson card.
     static func minutesLeft(until end: Date, now: Date) -> Int { Int((end.timeIntervalSince(now) / 60).rounded(.up)) }
 
     /// The home screen's homework: upcoming, without the ones marked solved.
-    static func openHomework(_ items: [HaziFeladat], today: Date) -> [HaziFeladat] { split(items, today: today, date: \.hataridoDatuma).upcoming.filter { $0.isMegoldva != true } }
+    static func openHomework(_ items: [Homework], today: Date) -> [Homework] { split(items, today: today, date: \.due).upcoming.filter { $0.done != true } }
 
     /// Homework/tests: from today on soonest first, before today latest first.
     static func split<T>(_ items: [T], today: Date, date: (T) -> Date) -> (upcoming: [T], past: [T]) {
@@ -52,18 +52,18 @@ enum HomeLogic {
 enum AbsenceFilter: String, CaseIterable {
     case all = "Mind", unexcused = "Igazolatlan", pending = "Igazolandó", subjects = "Tantárgyak"
 
-    func apply(_ all: [Mulasztas]) -> [Mulasztas] {
+    func apply(_ all: [Absence]) -> [Absence] {
         switch self {
-        case .unexcused: all.filter { $0.igazolasAllapota == "Igazolatlan" }
-        case .pending: all.filter { $0.igazolasAllapota != "Igazolt" && $0.igazolasAllapota != "Igazolatlan" }
+        case .unexcused: all.filter { $0.state == .unexcused }
+        case .pending: all.filter { $0.state == .pending }
         case .all, .subjects: all
         }
     }
 
     /// Per subject: absences (lateness apart, in minutes), the most missed first, to keep an eye on the limits.
-    static func bySubject(_ all: [Mulasztas]) -> [(subject: Tantargy, absences: Int, lateMinutes: Int)] {
-        Dictionary(grouping: all, by: \.tantargy.uid).values.map { items in
-            (items[0].tantargy, items.filter { !$0.isLate }.count, items.filter(\.isLate).reduce(0) { $0 + ($1.kesesPercben ?? 0) })
+    static func bySubject(_ all: [Absence]) -> [(subject: Subject, absences: Int, lateMinutes: Int)] {
+        Dictionary(grouping: all, by: \.subject.id).values.map { items in
+            (items[0].subject, items.filter { !$0.late }.count, items.filter(\.late).reduce(0) { $0 + ($1.lateMinutes ?? 0) })
         }
         .sorted { ($0.absences, $1.subject.name) > ($1.absences, $0.subject.name) }
     }
@@ -73,13 +73,13 @@ enum AbsenceFilter: String, CaseIterable {
 struct AbsenceStats: Equatable {
     var justified = 0, unjustified = 0, pending = 0, lateMinutes = 0
 
-    init(_ all: [Mulasztas]) {
+    init(_ all: [Absence]) {
         for a in all {
-            if a.isLate { lateMinutes += a.kesesPercben ?? 0; continue }
-            switch a.igazolasAllapota {
-            case "Igazolt": justified += 1
-            case "Igazolatlan": unjustified += 1
-            default: pending += 1
+            if a.late { lateMinutes += a.lateMinutes ?? 0; continue }
+            switch a.state {
+            case .excused: justified += 1
+            case .unexcused: unjustified += 1
+            case .pending: pending += 1
             }
         }
     }
@@ -87,23 +87,23 @@ struct AbsenceStats: Equatable {
 
 enum GradesLogic {
     struct SubjectGrades: Identifiable {
-        var subject: Tantargy
-        var grades: [Ertekeles]
-        var id: String { subject.uid }
+        var subject: Subject
+        var grades: [Grade]
+        var id: String { subject.id }
     }
 
     /// Mean class average over the subjects you have grades in (KRÉTA also sends subjects you don't).
-    static func classOverall(_ grades: [Ertekeles], averages: [String: Double]?) -> Double? {
-        let mine = Set(grades.map(\.tantargy.uid))
+    static func classOverall(_ grades: [Grade], averages: [String: Double]?) -> Double? {
+        let mine = Set(grades.map(\.subject.id))
         let all = (averages ?? [:]).filter { mine.contains($0.key) }.values
         return all.isEmpty ? nil : all.reduce(0, +) / Double(all.count)
     }
 
     /// Grades by subject, in KRÉTA's subject order, then by name.
-    static func subjects(_ grades: [Ertekeles]) -> [SubjectGrades] {
-        Dictionary(grouping: grades, by: \.tantargy.uid).values
-            .map { SubjectGrades(subject: $0[0].tantargy, grades: $0) }
-            .sorted { ($0.subject.sortIndex ?? 0, $0.subject.nev) < ($1.subject.sortIndex ?? 0, $1.subject.nev) }
+    static func subjects(_ grades: [Grade]) -> [SubjectGrades] {
+        Dictionary(grouping: grades, by: \.subject.id).values
+            .map { SubjectGrades(subject: $0[0].subject, grades: $0) }
+            .sorted { ($0.subject.order ?? 0, $0.subject.raw) < ($1.subject.order ?? 0, $1.subject.raw) }
     }
 
     static func columnAverage(_ values: [Int?]) -> String {
@@ -112,12 +112,11 @@ enum GradesLogic {
     }
 }
 
-extension Ertekeles {
+extension Grade {
     /// "Törtek · Írásbeli röpdolgozat · 200%"; the weight only when it isn't 100% and isn't in the mode already.
     var details: String {
-        let mode = mod?.leiras
-        let weight = sulySzazalekErteke.flatMap { $0 == 100 || mode?.contains("\($0)%") == true ? nil : "\($0)%" }
-        return [tema, mode, weight].compactMap { $0 }.joined(separator: " · ")
+        let weight = self.weight.flatMap { $0 == 100 || mode?.contains("\($0)%") == true ? nil : "\($0)%" }
+        return [topic, mode, weight].compactMap { $0 }.joined(separator: " · ")
     }
 }
 
@@ -152,11 +151,11 @@ extension Kreta {
 extension Renames {
     /// Every subject and teacher in the data, once each, in Hungarian alphabetical order.
     static func names(in d: Snapshot) -> (subjects: [String], teachers: [String]) {
-        let subjects = Set(d.grades.map(\.tantargy.nev) + d.lessons.compactMap { $0.tantargy?.nev } + d.tests.map(\.tantargy.nev)
-                           + d.homework.map(\.tantargy.nev) + d.absences.map(\.tantargy.nev)).map(\.capitalizedFirst)
-        let teachers = Set(d.lessons.flatMap { [$0.tanarNeve, $0.helyettesTanarNeve] }
-                           + d.grades.map(\.ertekeloTanarNeve) + d.tests.map(\.rogzitoTanarNeve)
-                           + d.homework.map(\.rogzitoTanarNeve) + d.notes.map(\.keszitoTanarNeve)).compactMap { $0 }
+        let subjects = Set(d.grades.map(\.subject.raw) + d.lessons.compactMap { $0.subject?.raw } + d.tests.map(\.subject.raw)
+                           + d.homework.map(\.subject.raw) + d.absences.map(\.subject.raw)).map(\.capitalizedFirst)
+        let teachers = Set(d.lessons.flatMap { [$0.teacher, $0.substitute] }
+                           + d.grades.map(\.teacher) + d.tests.map(\.teacher) + d.homework.map(\.teacher)
+                           + d.messageList.filter { $0.source == "f" }.map(\.author)).compactMap { $0 }
         let hu = Locale(identifier: "hu_HU")
         let sort = { (a: [String]) in a.sorted { $0.compare($1, locale: hu) == .orderedAscending } }
         return (sort(Array(subjects)), sort(teachers))

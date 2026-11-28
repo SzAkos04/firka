@@ -10,9 +10,9 @@ struct TimetableTests {
     func weekKeepsMondayMidnight() {
         let week = budapest(2026, 10, 26)  // autumn break, the week right after the DST change
         let next = budapest(2026, 11, 2)
-        let event = lesson("e", day: week, from: 0, minutes: 0, event: true)
-        let sunday = lesson("s", day: budapest(2026, 10, 25), from: 8 * 60)
-        let nextMonday = lesson("n", day: next, from: 8 * 60)
+        let event: Ora = try! decode(#"{"Uid":"e","Datum":"2026-10-25T23:00:00Z","KezdetIdopont":"2026-10-25T23:00:00Z","VegIdopont":"2026-10-25T23:00:00Z","Tipus":{"Nev":"TanevRendjeEsemeny"}}"#)
+        let sunday: Ora = try! decode(lessonJSON("s", start: budapest(2026, 10, 25, 8)))
+        let nextMonday: Ora = try! decode(lessonJSON("n", start: budapest(2026, 11, 2, 8)))
         #expect(Ora.keep([sunday, event, nextMonday], from: week, to: next).map(\.uid) == ["e"])
     }
 
@@ -21,7 +21,7 @@ struct TimetableTests {
         var nextWeek = lesson("b", day: budapest(2026, 11, 30), from: 8 * 60, number: 2)
         #expect(HideRule(.once, for: l).matches(l))
         #expect(!HideRule(.once, for: l).matches(nextWeek))
-        nextWeek.kezdetIdopont = l.kezdetIdopont
+        nextWeek.start = l.start
         #expect(HideRule(.once, for: l).matches(nextWeek), "a planned lesson's KRÉTA id changes once it's logged")
     }
 
@@ -45,7 +45,7 @@ struct TimetableTests {
         let l = lesson("a", day: monday, from: 8 * 60)
         #expect(HideRule(.subject, for: l).matches(lesson("b", day: budapest(2027, 2, 1), from: 13 * 60, number: 7)))
         var event = lesson("e", day: monday, from: 0, event: true)
-        event.nev = "matematika"
+        event.name = "matematika"
         #expect(!HideRule(.subject, for: l).matches(event))
     }
 

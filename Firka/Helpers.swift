@@ -4,44 +4,35 @@ extension String {
     var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }
 
-extension Ora {
-    var isCancelled: Bool { (allapot?.nev ?? "").lowercased().contains("elmarad") || tipus.nev == "UresOra" }
-    var title: String { Renames.shared.subject((tantargy?.nev ?? nev ?? "Óra").capitalizedFirst) }
+extension Lesson {
+    var title: String { Renames.shared.subject((subject?.raw ?? name ?? "Óra").capitalizedFirst) }
 }
 
-extension Ertekeles {
-
+extension Grade {
     var display: String {
-        if isClassic, let n = szamErtek { return "\(n)" }
-        if ertekFajta.nev == "Szazalekos", let n = szamErtek { return "\(n)%" }
-        return szovegesErtekelesRovidNev ?? szovegesErtek ?? "–"
+        if value == .grade, let n = number { return "\(n)" }
+        if value == .percent, let n = number { return "\(n)%" }
+        return shortText ?? text ?? "–"
     }
-
 }
 
-
-extension Mulasztas {
-    var isLate: Bool { tipus?.nev?.lowercased() == "keses" || (kesesPercben ?? 0) > 0 }
+extension Absence {
     var stateLabel: String {
-        let kind = isLate ? "késés (\(kesesPercben ?? 0) perc)" : "hiányzás"
-        switch igazolasAllapota {
-        case "Igazolt": return "Igazolt \(kind)"
-        case "Igazolatlan": return "Igazolatlan \(kind)"
-        default: return "Igazolandó \(kind)"
-        }
+        let kind = late ? "késés (\(lateMinutes ?? 0) perc)" : "hiányzás"
+        return "\(stateShort) \(kind)"
     }
     var stateShort: String {
-        switch igazolasAllapota {
-        case "Igazolt": "Igazolt"
-        case "Igazolatlan": "Igazolatlan"
-        default: "Igazolandó"
+        switch state {
+        case .excused: "Igazolt"
+        case .unexcused: "Igazolatlan"
+        case .pending: "Igazolandó"
         }
     }
     var stateColor: Color {
-        switch igazolasAllapota {
-        case "Igazolt": .justified
-        case "Igazolatlan": .unjustified
-        default: .pending
+        switch state {
+        case .excused: .justified
+        case .unexcused: .unjustified
+        case .pending: .pending
         }
     }
 }
@@ -57,23 +48,59 @@ extension Color {
     static let cancelled = unjustified
 }
 
-/// Notice-board items and teacher notes shown in one list.
-struct Message: Identifiable, Hashable {
+/// Notice-board items, teacher notes and teacher messages in one list. The id's first letter is its source
+/// (KRÉTA: n notice board, f note, p inbox), which the filter and the notifications go by.
+struct Message: Codable, Identifiable, Hashable {
     var id: String
     var title: String
     var author: String?
+    /// The sender's role, shown after the name ("osztályfőnök").
+    var authorRole: String?
     var date: Date
     var html: String
-    var attachments: [Csatolmany] = []
+    var attachments: [Attachment] = []
     var unread = false
+
+    var source: String { String(id.prefix(1)) }
+
+    /// A sync's messages, source by source: a source that failed (nil) keeps its old messages, and a source
+    /// counts as loaded once it has loaded (Notifier.changes takes its first list as a baseline).
+    static func merge(_ fresh: [String: [Message]?], old: Snapshot?) -> (messages: [Message], sources: Set<String>) {
+        var out: [Message] = [], sources = Set<String>()
+        for (source, list) in fresh {
+            if let list {
+                out += list
+                sources.insert(source)
+            } else {
+                out += (old?.messageList ?? []).filter { $0.source == source }
+                if old?.messageSources.contains(source) == true { sources.insert(source) }
+            }
+        }
+        return (out.sorted { $0.date > $1.date }, sources)
+    }
 }
 
 extension Snapshot {
     /// Message texts are downloaded one by one while a sync may be running: keep the ones it doesn't know of.
     mutating func keepBodies(from other: Snapshot?) {
-        guard let more = other?.inboxBodies else { return }
-        inboxBodies = more.merging(inboxBodies ?? [:]) { _, mine in mine }
+        guard let more = other?.messageBodies else { return }
+        messageBodies = more.merging(messageBodies ?? [:]) { _, mine in mine }
     }
+
+    /// The messages to show: full texts where downloaded (that counts as read; the school system isn't told),
+    /// senders as the user renamed them.
+    var messages: [Message] {
+        messageList.map { m in
+            var m = m
+            if let body = messageBodies?[m.id] { m.html = body; m.unread = false }
+            m.author = [m.author?.renamedTeacher, m.authorRole].compactMap { $0 }.joined(separator: ", ").nilIfEmpty
+            return m
+        }
+    }
+}
+
+extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 /// The messages screen's filter: which source, and a search.
@@ -87,23 +114,6 @@ enum MessageFilter: String, CaseIterable {
             (prefix == nil || m.id.hasPrefix(prefix!))
                 && (q.isEmpty || [m.title, m.author ?? "", m.html.strippingTags].contains { $0.localizedStandardContains(q) })
         }
-    }
-}
-
-extension Snapshot {
-    var messages: [Message] {
-        (notices.map { Message(id: "n" + $0.uid, title: $0.cim ?? "Üzenet", author: $0.rogzitoNeve?.renamedTeacher, date: $0.ervenyessegKezdete, html: $0.tartalom ?? "") }
-         + notes.map { Message(id: "f" + $0.uid, title: $0.cim ?? $0.tipus?.leiras ?? "Feljegyzés", author: $0.keszitoTanarNeve?.renamedTeacher, date: $0.datum, html: $0.tartalomFormazott ?? $0.tartalom ?? "") }
-         + (inbox ?? []).map { p in
-             let u = p.uzenet
-             return Message(id: p.id, title: u.targy ?? "Üzenet",
-                            author: [u.feladoNev?.renamedTeacher, u.feladoTitulus].compactMap { $0 }.joined(separator: ", "),
-                            date: u.kuldesDatum, html: inboxBodies?[String(p.azonosito)] ?? u.szoveg ?? "",
-                            attachments: u.csatolmanyok ?? [],
-                            // opening it here downloads the full text: that counts as read (KRÉTA isn't told)
-                            unread: p.isElolvasva == false && inboxBodies?[String(p.azonosito)] == nil)
-         })
-            .sorted { $0.date > $1.date }
     }
 }
 

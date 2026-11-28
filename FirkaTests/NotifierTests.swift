@@ -8,19 +8,19 @@ import UserNotifications
 struct NotifierTests {
     let now = budapest(2026, 11, 23, 7)
 
-    func snapshot(grades g: [Ertekeles] = [], lessons: [Ora] = [], name: String = "Teszt Elek", synced: Bool = true) -> Snapshot {
+    func snapshot(grades g: [Grade] = [], lessons: [Lesson] = [], name: String = "Teszt Elek", synced: Bool = true) -> Snapshot {
         var s = Snapshot()
         s.studentName = name
         s.grades = g
         s.lessons = lessons
-        s.inbox = []
+        s.messageSources = ["n", "f", "p"]
         s.updated = synced ? now : nil
         return s
     }
 
     func changes(_ old: Snapshot, _ new: Snapshot, surprise: Bool = true, off: Set<String> = [], hidden: Set<String> = []) -> [Notifier.Alert] {
         Notifier.changes(old: old, new: new, now: now, enabled: { !off.contains($0) }, surprise: surprise,
-                         isHidden: { hidden.contains($0.uid) })
+                         isHidden: { hidden.contains($0.id) })
     }
 
     @Test func newGradeKeepsTheSurprise() throws {
@@ -74,8 +74,8 @@ struct NotifierTests {
 
     @Test("an absence the school turns unexcused is news; turning excused isn't")
     func absenceTurnsUnexcused() throws {
-        func absence(_ uid: String, _ state: String) throws -> Mulasztas {
-            try decode(#"{"Uid":"\#(uid)","Tantargy":\#(subjectJSON),"Datum":"2026-11-16T23:00:00Z","IgazolasAllapota":"\#(state)"}"#)
+        func absence(_ uid: String, _ state: String) throws -> Absence {
+            try absences(#"[{"Uid":"\#(uid)","Tantargy":\#(subjectJSON),"Datum":"2026-11-16T23:00:00Z","IgazolasAllapota":"\#(state)"}]"#)[0]
         }
         var old = snapshot(), new = snapshot()
         old.absences = [try absence("a", "Igazolando"), try absence("b", "Igazolando"), try absence("c", "Igazolatlan")]
@@ -105,9 +105,9 @@ struct NotifierTests {
     @Test("the first sync that has teacher messages doesn't announce years of them")
     func inboxBaseline() throws {
         var old = snapshot()
-        old.inbox = nil
+        old.messageSources = ["n", "f"]
         var new = snapshot()
-        new.inbox = try decode(#"[{"azonosito":1,"tipus":{"kod":"BEERKEZETT"},"uzenet":{"azonosito":1,"kuldesDatum":"2026-11-18T09:50:50","targy":"Régi"}}]"#)
+        new.messageList = try inbox(#"[{"azonosito":1,"tipus":{"kod":"BEERKEZETT"},"uzenet":{"azonosito":1,"kuldesDatum":"2026-11-18T09:50:50","targy":"Régi"}}]"#)
         #expect(changes(old, new).isEmpty)
     }
 

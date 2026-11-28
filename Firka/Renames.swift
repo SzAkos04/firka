@@ -26,9 +26,9 @@ final class Renames {
     }
 }
 
-extension Tantargy {
-    /// The subject name to show: the user's own, or KRÉTA's with a capital first letter.
-    var name: String { Renames.shared.subject(nev.capitalizedFirst) }
+extension Subject {
+    /// The subject name to show: the user's own, or the school system's with a capital first letter.
+    var name: String { Renames.shared.subject(raw.capitalizedFirst) }
 }
 
 extension String {

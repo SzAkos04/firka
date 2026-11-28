@@ -10,10 +10,10 @@ struct HomeView: View {
                     .navigationTitle(HomeLogic.greeting(name: store.data.studentName, hour: Calendar.hu.component(.hour, from: ctx.date)))
             }
             .refreshable { await store.refresh() }
-            .navigationDestination(for: Ora.self) { LessonDetail(lesson: $0) }
-            .navigationDestination(for: Ertekeles.self) { GradeDetail(grade: $0) }
-            .navigationDestination(for: HaziFeladat.self) { HomeworkDetail(hw: $0) }
-            .navigationDestination(for: Szamonkeres.self) { TestDetail(test: $0) }
+            .navigationDestination(for: Lesson.self) { LessonDetail(lesson: $0) }
+            .navigationDestination(for: Grade.self) { GradeDetail(grade: $0) }
+            .navigationDestination(for: Homework.self) { HomeworkDetail(hw: $0) }
+            .navigationDestination(for: AnnouncedTest.self) { TestDetail(test: $0) }
         }
     }
 
@@ -21,9 +21,9 @@ struct HomeView: View {
     private func list(now: Date) -> some View {
         let data = store.data
         let (current, next, day, dayLessons) = HomeLogic.today(data.lessons, now: now, isHidden: HiddenLessons.shared.isHidden)
-        let tests = HomeLogic.split(data.tests, today: now.startOfDay, date: \.datum).upcoming
+        let tests = HomeLogic.split(data.tests, today: now.startOfDay, date: \.date).upcoming
         let homework = HomeLogic.openHomework(data.homework, today: now.startOfDay)
-        let recent = store.visibleGrades.sorted { $0.keszitesDatuma > $1.keszitesDatuma }.prefix(5)
+        let recent = store.visibleGrades.sorted { $0.date > $1.date }.prefix(5)
 
         List {
             if let err = store.error {
@@ -36,7 +36,7 @@ struct HomeView: View {
                 if let current {
                     NowCard(title: "Most", lesson: current, now: now)
                 } else if let next {
-                    NowCard(title: next.kezdetIdopont.startOfDay == now.startOfDay ? "Következő óra" : "Következő óra – \(next.kezdetIdopont.hu("EEEE"))",
+                    NowCard(title: next.start.startOfDay == now.startOfDay ? "Következő óra" : "Következő óra – \(next.start.hu("EEEE"))",
                             lesson: next, now: now)
                 } else {
                     Text("Nincs több óra a következő két hétben 🎉").foregroundStyle(.secondary)
@@ -80,7 +80,7 @@ struct HomeView: View {
 
 struct NowCard: View {
     let title: String
-    let lesson: Ora
+    let lesson: Lesson
     let now: Date
 
     var body: some View {
@@ -89,18 +89,18 @@ struct NowCard: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(lesson.title).font(.title2.bold())
                 Spacer()
-                if let room = lesson.teremNeve { Text(room).font(.headline).foregroundStyle(.secondary) }
+                if let room = lesson.room { Text(room).font(.headline).foregroundStyle(.secondary) }
             }
-            if let sub = lesson.helyettesTanarNeve?.renamedTeacher {
+            if let sub = lesson.substitute?.renamedTeacher {
                 Label("Helyettesít: \(sub)", systemImage: "person.2.fill").font(.subheadline).foregroundStyle(Color.substituted)
             }
-            if lesson.kezdetIdopont <= now {
-                let total = lesson.vegIdopont.timeIntervalSince(lesson.kezdetIdopont)
-                ProgressView(value: min(now.timeIntervalSince(lesson.kezdetIdopont), total), total: total)
-                Text("Még \(HomeLogic.minutesLeft(until: lesson.vegIdopont, now: now)) perc · vége \(lesson.vegIdopont.time)")
+            if lesson.start <= now {
+                let total = lesson.end.timeIntervalSince(lesson.start)
+                ProgressView(value: min(now.timeIntervalSince(lesson.start), total), total: total)
+                Text("Még \(HomeLogic.minutesLeft(until: lesson.end, now: now)) perc · vége \(lesson.end.time)")
                     .font(.subheadline).foregroundStyle(.secondary)
             } else {
-                Text("\(lesson.kezdetIdopont.time) – \(lesson.vegIdopont.time) · \(lesson.kezdetIdopont, style: .relative) múlva")
+                Text("\(lesson.start.time) – \(lesson.end.time) · \(lesson.start, style: .relative) múlva")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
         }

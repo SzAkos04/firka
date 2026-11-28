@@ -26,7 +26,7 @@ struct GradesTests {
     }
 
     @Test func empty() {
-        let none: [Ertekeles] = []
+        let none: [Grade] = []
         #expect(none.average == nil && none.overallAverage == nil && none.runningAverage.isEmpty)
         #expect(none.average(adding: [WhatIf(5), WhatIf(5)]) == 5)
     }
@@ -44,7 +44,7 @@ struct GradesTests {
         let g = try grades(gradeJSON("old", 5, 100, date: "2025-09-10T08:00:00Z", teacher: "Régi Tanár"),
                            gradeJSON("new", 4, 100, date: "2025-11-10T08:00:00Z", teacher: "Új Tanár"))
         #expect(g.teacher == "Új Tanár")
-        #expect([Ertekeles]().teacher == nil)
+        #expect([Grade]().teacher == nil)
     }
 
     @Test("what-if grades: 100% unless another weight is picked")
@@ -85,10 +85,10 @@ struct GradesTests {
                            gradeJSON("b1", 5, 100, subject: historyJSON), gradeJSON("b2", 4, 100, subject: historyJSON))
         let card = g.reportCard(r)
         #expect(card.upcoming == .end)
-        let math = card.rows.first { $0.subject.uid == "1,MAT" }!, hist = card.rows.first { $0.subject.uid == "2,TOR" }!
-        #expect(math.half?.szamErtek == 4 && math.expected == 5)
+        let math = card.rows.first { $0.subject.id == "1,MAT" }!, hist = card.rows.first { $0.subject.id == "2,TOR" }!
+        #expect(math.half?.number == 4 && math.expected == 5)
         #expect(hist.half == nil && hist.expected == 5)  // 4,5 → 5
-        #expect(card.rows.map(\.subject.uid) == ["1,MAT", "2,TOR"])  // KRÉTA's sort order
+        #expect(card.rows.map(\.subject.id) == ["1,MAT", "2,TOR"])  // KRÉTA's sort order
     }
 
     @Test func reportCardBeforeAnyTerm() throws {

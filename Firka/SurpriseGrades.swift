@@ -13,7 +13,7 @@ struct NewGradesSection: View {
         if !rows.isEmpty {
             Section {
                 ForEach(rows) { g in
-                    NewGradeRow(grade: g, hidden: store.isHidden(g), note: store.revealNotes[g.uid]) { reveal(g) }
+                    NewGradeRow(grade: g, hidden: store.isHidden(g), note: store.revealNotes[g.id]) { reveal(g) }
                 }
             } header: {
                 HStack {
@@ -29,7 +29,7 @@ struct NewGradesSection: View {
         }
     }
 
-    private func reveal(_ g: Ertekeles) {
+    private func reveal(_ g: Grade) {
         withAnimation(.snappy) { store.reveal(g) }
         RevealFeel.of([g])?.play()
     }
@@ -50,11 +50,11 @@ struct NewGradesSection: View {
 /// The haptic for revealing grades: one, however many at once.
 enum RevealFeel: Equatable {
     case success, light
-    static func of(_ grades: [Ertekeles]) -> RevealFeel? {
+    static func of(_ grades: [Grade]) -> RevealFeel? {
         grades.isEmpty ? nil : grades.contains { ($0.level ?? 0) >= 4 } ? .success : .light
     }
 
-    func play() {
+    @MainActor func play() {
         switch self {
         case .success: UINotificationFeedbackGenerator().notificationOccurred(.success)
         case .light: UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -63,7 +63,7 @@ enum RevealFeel: Equatable {
 }
 
 private struct NewGradeRow: View {
-    let grade: Ertekeles
+    let grade: Grade
     let hidden: Bool
     let note: RevealNote?
     let onReveal: () -> Void
@@ -87,7 +87,7 @@ private struct NewGradeRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(grade.tantargy.name)
+                    Text(grade.subject.name)
                     if !hidden && good {
                         Image(systemName: "sparkle")
                             .font(.footnote)
@@ -111,7 +111,7 @@ private struct NewGradeRow: View {
         .contentShape(Rectangle())
         .onTapGesture { if hidden { onReveal() } }
         .accessibilityElement(children: hidden ? .ignore : .combine)
-        .accessibilityLabel(hidden ? "Új \(grade.tantargy.name) jegy, rejtve" : "")
+        .accessibilityLabel(hidden ? "Új \(grade.subject.name) jegy, rejtve" : "")
         .accessibilityAddTraits(hidden ? .isButton : [])
         .accessibilityAction { if hidden { onReveal() } }
     }

@@ -17,6 +17,16 @@ extension Global {
 
         let monday = budapest(2026, 11, 23)
 
+        @Test("the KRÉTA-shaped cache of earlier builds is dropped on the first load; one sync refills the new one")
+        func oldCacheDropped() throws {
+            let old = Shared.containerURL.appendingPathComponent("snapshot.json")
+            let saved = try? Data(contentsOf: Snapshot.file)
+            defer { if let saved { try? saved.write(to: Snapshot.file) } }
+            try Data(#"{"studentName":"A","grades":[],"lessons":[]}"#.utf8).write(to: old)
+            _ = Snapshot.load()
+            #expect(!FileManager.default.fileExists(atPath: old.path))
+        }
+
         @Test("hiding and showing again is saved; hiding twice adds one rule")
         func hiddenLessons() throws {
             let h = HiddenLessons.shared
@@ -46,7 +56,7 @@ extension Global {
             r.subjects = ["Matematika": "Matek"]
             r.teachers = ["Kovács Anna": "Anna néni"]
             #expect(UserDefaults.standard.dictionary(forKey: Pref.renameSubjects) as? [String: String] == ["Matematika": "Matek"])
-            #expect(try grades(gradeJSON("a", 5, 100))[0].tantargy.name == "Matek")
+            #expect(try grades(gradeJSON("a", 5, 100))[0].subject.name == "Matek")
             #expect(lesson("l", day: monday, from: 480).title == "Matek")
             #expect("Kovács Anna".renamedTeacher == "Anna néni" && "Más Tanár".renamedTeacher == "Más Tanár")
             r.subjects = [:]
@@ -92,7 +102,7 @@ struct TextTests {
         ("Igazolando", nil, "Igazolandó hiányzás"), ("Igazolt", 7, "Igazolt késés (7 perc)"),
     ] as [(String, Int?, String)])
     func absenceLabel(_ state: String, _ late: Int?, _ label: String) throws {
-        let a: [Mulasztas] = try decode(#"[{"Uid":"1","Tantargy":\#(subjectJSON),"Datum":"2025-11-09T23:00:00Z","IgazolasAllapota":"\#(state)","KesesPercben":\#(late.map(String.init) ?? "null")}]"#)
+        let a = try absences(#"[{"Uid":"1","Tantargy":\#(subjectJSON),"Datum":"2025-11-09T23:00:00Z","IgazolasAllapota":"\#(state)","KesesPercben":\#(late.map(String.init) ?? "null")}]"#)
         #expect(a[0].stateLabel == label)
         #expect(a[0].stateShort == String(label.split(separator: " ")[0]))
     }
@@ -106,28 +116,28 @@ struct TextTests {
         #expect(g.map(\.display) == ["4", "87%", "Nem írt", "KM"])
     }
 
-    @Test("lessons: cancelled by state or as an empty slot; title from the subject, else the name")
+    @Test("lessons: title from the subject, else the name (cancelled: KretaMappingTests)")
     func lessonTexts() throws {
         let day = budapest(2026, 11, 23)
-        #expect(lesson("a", day: day, from: 480, cancelled: true).isCancelled)
-        var empty = lesson("b", day: day, from: 480)
-        empty.tipus.nev = "UresOra"
-        #expect(empty.isCancelled)
+        #expect(lesson("a", day: day, from: 480, cancelled: true).cancelled)
         var noSubject = lesson("c", day: day, from: 480)
-        noSubject.tantargy = nil
-        noSubject.nev = "osztályfőnöki"
+        noSubject.subject = nil
+        noSubject.name = "osztályfőnöki"
         #expect(noSubject.title == "Osztályfőnöki")
-        noSubject.nev = nil
+        noSubject.name = nil
         #expect(noSubject.title == "Óra")
     }
 
     @Test("messages: notice board, teacher notes and inbox in one list, newest first")
     func messages() throws {
         var s = Snapshot()
-        s.notices = try decode(#"[{"Uid":"1","Cim":"Kirándulás","RogzitoNeve":"Kovács Anna","ErvenyessegKezdete":"2026-11-10T08:00:00Z","Tartalom":"<p>Hétfőn</p>"}]"#)
-        s.notes = try decode(#"[{"Uid":"1","Datum":"2026-11-12T08:00:00Z","Tipus":{"Leiras":"Dicséret"},"Tartalom":"sima","TartalomFormazott":"<b>formázott</b>"}]"#)
-        s.inbox = try decode("[\(inboxJSON(5, subject: "Szülői", text: "eleje"))]")
-        s.inboxBodies = ["5": "teljes"]
+        let (list, _) = Message.merge([
+            "n": try notices(#"[{"Uid":"1","Cim":"Kirándulás","RogzitoNeve":"Kovács Anna","ErvenyessegKezdete":"2026-11-10T08:00:00Z","Tartalom":"<p>Hétfőn</p>"}]"#),
+            "f": try notes(#"[{"Uid":"1","Datum":"2026-11-12T08:00:00Z","Tipus":{"Leiras":"Dicséret"},"Tartalom":"sima","TartalomFormazott":"<b>formázott</b>"}]"#),
+            "p": try inbox("[\(inboxJSON(5, subject: "Szülői", text: "eleje"))]"),
+        ], old: nil)
+        s.messageList = list
+        s.messageBodies = ["p5": "teljes"]
         let m = s.messages
         #expect(m.map(\.id) == ["p5", "f1", "n1"])
         #expect(m[1].title == "Dicséret" && m[1].html == "<b>formázott</b>", "a note without a title is named by its type")
@@ -138,21 +148,33 @@ struct TextTests {
     @Test("a sync keeps the message texts downloaded while it ran (the app or the background task saved them)")
     func keepBodies() {
         var synced = Snapshot()
-        synced.inboxBodies = ["1": "régi"]
+        synced.messageBodies = ["1": "régi"]
         var meanwhile = Snapshot()
-        meanwhile.inboxBodies = ["1": "régi", "2": "közben letöltve"]
+        meanwhile.messageBodies = ["1": "régi", "2": "közben letöltve"]
         synced.keepBodies(from: meanwhile)
-        #expect(synced.inboxBodies == ["1": "régi", "2": "közben letöltve"])
+        #expect(synced.messageBodies == ["1": "régi", "2": "közben letöltve"])
         synced.keepBodies(from: nil)
-        #expect(synced.inboxBodies?.count == 2)
+        #expect(synced.messageBodies?.count == 2)
+    }
+
+    @Test("messages by source: a failed one keeps its messages and whether it ever loaded; a never-loaded one stays so")
+    func mergeSources() {
+        let m = { (id: String, days: Int) in Message(id: id, title: id, date: budapest(2026, 11, 20 + days), html: "") }
+        var old = Snapshot()
+        old.messageList = [m("n1", 0), m("p1", 1)]
+        old.messageSources = ["n", "p"]
+        let (list, sources) = Message.merge(["n": [m("n2", 2)], "f": nil, "p": nil], old: old)
+        #expect(list.map(\.id) == ["n2", "p1"], "newest first; the failed inbox keeps its message")
+        #expect(sources == ["n", "p"], "notes never loaded: still not")
+        #expect(Message.merge(["f": [m("f1", 0)]], old: nil).sources == ["f"])
     }
 
     @Test("unread: a teacher message KRÉTA hasn't seen read, until its full text is opened here")
     func unread() throws {
         var s = Snapshot()
-        s.notices = try decode(#"[{"Uid":"1","Cim":"Kirándulás","ErvenyessegKezdete":"2026-11-10T08:00:00Z"}]"#)
-        s.inbox = try decode("[\(inboxJSON(5, read: false)), \(inboxJSON(6, read: false)), \(inboxJSON(7))]")
-        s.inboxBodies = ["6": "megnyitva"]
+        s.messageList = try notices(#"[{"Uid":"1","Cim":"Kirándulás","ErvenyessegKezdete":"2026-11-10T08:00:00Z"}]"#)
+            + inbox("[\(inboxJSON(5, read: false)), \(inboxJSON(6, read: false)), \(inboxJSON(7))]")
+        s.messageBodies = ["p6": "megnyitva"]
         #expect(Dictionary(uniqueKeysWithValues: s.messages.map { ($0.id, $0.unread) }) == ["p5": true, "p6": false, "p7": false, "n1": false])
     }
 
@@ -203,7 +225,7 @@ struct NotifierKindsTests {
     func base() -> Snapshot {
         var s = Snapshot()
         s.studentName = "Teszt Elek"
-        s.inbox = []
+        s.messageSources = ["n", "f", "p"]
         s.updated = now
         return s
     }
@@ -212,10 +234,10 @@ struct NotifierKindsTests {
     func kinds() throws {
         let old = base()
         var new = base()
-        new.homework = try decode(#"[{"Uid":"h1","Tantargy":\#(subjectJSON),"FeladasDatuma":"2026-11-20T08:00:00Z","HataridoDatuma":"2026-11-25T08:00:00Z"}]"#)
-        new.tests = try decode(#"[{"Uid":"t1","Datum":"2026-11-26T08:00:00Z","BejelentesDatuma":"2026-11-20T08:00:00Z","Tantargy":\#(subjectJSON),"Temaja":"Törtek"}]"#)
-        new.absences = try decode(#"[{"Uid":"a1","Tantargy":\#(subjectJSON),"Datum":"2026-11-20T08:00:00Z","IgazolasAllapota":"Igazolando"}]"#)
-        new.inbox = try decode("[\(inboxJSON(9, subject: "Fogadóóra"))]")
+        new.homework = try homework(#"[{"Uid":"h1","Tantargy":\#(subjectJSON),"FeladasDatuma":"2026-11-20T08:00:00Z","HataridoDatuma":"2026-11-25T08:00:00Z"}]"#)
+        new.tests = try announcedTests(#"[{"Uid":"t1","Datum":"2026-11-26T08:00:00Z","BejelentesDatuma":"2026-11-20T08:00:00Z","Tantargy":\#(subjectJSON),"Temaja":"Törtek"}]"#)
+        new.absences = try absences(#"[{"Uid":"a1","Tantargy":\#(subjectJSON),"Datum":"2026-11-20T08:00:00Z","IgazolasAllapota":"Igazolando"}]"#)
+        new.messageList = try inbox("[\(inboxJSON(9, subject: "Fogadóóra"))]")
         let all = Notifier.changes(old: old, new: new, now: now, enabled: { _ in true }, surprise: false, isHidden: { _ in false })
         #expect(all == [
             .init(id: "homework", title: "Új házi feladat", lines: ["Matematika"]),

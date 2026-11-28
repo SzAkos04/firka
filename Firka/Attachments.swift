@@ -3,9 +3,9 @@ import QuickLook
 
 /// Attachments of a teacher message: tap to download (once, then cached) and preview with Quick Look.
 struct AttachmentList: View {
-    let attachments: [Csatolmany]
+    let attachments: [Attachment]
     @Environment(AppStore.self) private var store
-    @State private var loading: Int?
+    @State private var loading: String?
     @State private var preview: URL?
     @State private var error: String?
 
@@ -15,11 +15,11 @@ struct AttachmentList: View {
             ForEach(attachments) { a in
                 Button { Task { await open(a) } } label: {
                     HStack(spacing: 12) {
-                        Image(systemName: Self.icon(a.fajlNev))
+                        Image(systemName: Self.icon(a.name))
                             .font(.title3)
                             .foregroundStyle(.tint)
                             .frame(width: 32)
-                        Text(a.fajlNev).lineLimit(2).multilineTextAlignment(.leading)
+                        Text(a.name).lineLimit(2).multilineTextAlignment(.leading)
                         Spacer()
                         if loading == a.id { ProgressView() } else { Image(systemName: "arrow.down.circle").foregroundStyle(.secondary) }
                     }
@@ -38,7 +38,7 @@ struct AttachmentList: View {
         }
     }
 
-    private func open(_ a: Csatolmany) async {
+    private func open(_ a: Attachment) async {
         loading = a.id
         defer { loading = nil }
         do {
@@ -64,23 +64,23 @@ struct AttachmentList: View {
     }
 }
 
-extension Csatolmany {
+extension Attachment {
     /// The original name (Quick Look and sharing use it), minus anything path-like.
     var safeFileName: String {
-        let name = fajlNev.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
+        let name = self.name.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
         return ["", ".", ".."].contains(name) ? "fajl" : name
     }
 }
 
 extension AppStore {
     /// Downloads an attachment into Caches (kept for next time; iOS may clear it when space is low).
-    func download(_ a: Csatolmany) async throws -> URL {
+    func download(_ a: Attachment) async throws -> URL {
         let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("attachments/\(a.azonosito)")
+            .appendingPathComponent("attachments/\(a.id)")
         let file = dir.appendingPathComponent(a.safeFileName)
         if FileManager.default.fileExists(atPath: file.path) { return file }
         guard let client = kretaClient else { throw KretaError.reauth }
-        let data = try await client.raw(a.downloadURL, timeout: 120)
+        let data = try await client.raw(a.url, timeout: 120)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         return file

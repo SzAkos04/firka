@@ -54,7 +54,7 @@ struct GradesView: View {
                                     GradeStrip(grades: s.grades)
                                 }
                                 Spacer(minLength: 0)
-                                if let c = store.data.classAverages?[s.subject.uid] {
+                                if let c = store.data.classAverages?[s.subject.id] {
                                     VStack(alignment: .trailing, spacing: 1) {
                                         Text("osztály")
                                         Text(c.hu2).monospacedDigit()
@@ -67,7 +67,7 @@ struct GradesView: View {
                         }
                     }
                 } else if mode == 1 {
-                    ForEach(grades.sorted { $0.keszitesDatuma > $1.keszitesDatuma }) { g in
+                    ForEach(grades.sorted { $0.date > $1.date }) { g in
                         NavigationLink(value: g) { GradeRow(grade: g) }
                     }
                 } else if hasTermGrades {
@@ -78,23 +78,23 @@ struct GradesView: View {
             .navigationTitle("Jegyek")
             .onChange(of: grades.contains { $0.term != nil }, initial: true) { _, has in if !has && mode == 2 { mode = 0 } }
             .refreshable { await store.refresh() }
-            .navigationDestination(for: Ertekeles.self) { GradeDetail(grade: $0) }
-            .navigationDestination(for: Tantargy.self) { SubjectView(subject: $0) }
+            .navigationDestination(for: Grade.self) { GradeDetail(grade: $0) }
+            .navigationDestination(for: Subject.self) { SubjectView(subject: $0) }
         }
     }
 }
 
 struct SubjectView: View {
-    let subject: Tantargy
+    let subject: Subject
     @Environment(AppStore.self) private var store
     @State private var whatIf: [WhatIf] = []  // "mi lenne ha" grades
     @State private var weight = 100  // the weight the next one gets
 
     var body: some View {
         // from the store, so a refresh while the page is open shows up here too
-        let grades = store.visibleGrades.filter { $0.tantargy.uid == subject.uid }
-        let classAverage = store.data.classAverages?[subject.uid]
-        let sorted = grades.sorted { $0.keszitesDatuma > $1.keszitesDatuma }
+        let grades = store.visibleGrades.filter { $0.subject.id == subject.id }
+        let classAverage = store.data.classAverages?[subject.id]
+        let sorted = grades.sorted { $0.date > $1.date }
         List {
             Section {
                 HStack(spacing: 16) {
@@ -160,7 +160,7 @@ struct SubjectView: View {
 }
 
 struct AverageChart: View {
-    let grades: [Ertekeles]
+    let grades: [Grade]
     var classAverage: Double?
     @State private var selected: Date?
 
@@ -215,13 +215,13 @@ struct AverageChart: View {
 }
 
 struct Distribution: View {
-    let grades: [Ertekeles]
+    let grades: [Grade]
 
     var body: some View {
         let counted = grades.filter(\.countsInAverage)
         HStack(spacing: 8) {
             ForEach(1...5, id: \.self) { n in
-                let count = counted.filter { $0.szamErtek == n }.count
+                let count = counted.filter { $0.number == n }.count
                 VStack(spacing: 1) {
                     Text("\(count)").font(.system(.headline, design: .rounded).monospacedDigit())
                     Text(["1-es", "2-es", "3-as", "4-es", "5-ös"][n - 1]).font(.caption2)
@@ -238,12 +238,12 @@ struct Distribution: View {
 
 /// A subject's last 8 grades as small chips, oldest to newest; width shows weight (200% wide, 50% narrow).
 struct GradeStrip: View {
-    let grades: [Ertekeles]
+    let grades: [Grade]
 
     var body: some View {
         HStack(spacing: 3) {
-            ForEach(grades.filter { $0.level != nil }.sorted { $0.keszitesDatuma < $1.keszitesDatuma }.suffix(8)) { g in
-                let w = g.sulySzazalekErteke ?? 100
+            ForEach(grades.filter { $0.level != nil }.sorted { $0.date < $1.date }.suffix(8)) { g in
+                let w = g.weight ?? 100
                 Text(g.display)
                     .font(.system(size: w < 100 ? 10 : 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.onGrade(g.level!))
@@ -256,7 +256,7 @@ struct GradeStrip: View {
 
 /// Half-year and year-end grades per subject; the next term without grades shows the expected grade.
 struct ReportCardSection: View {
-    let grades: [Ertekeles]
+    let grades: [Grade]
     @Environment(AppStore.self) private var store
     @ScaledMetric private var column = 56.0
 
@@ -298,7 +298,7 @@ struct ReportCardSection: View {
     }
 
     @ViewBuilder
-    private func cell(_ g: Ertekeles?, expected: Int?) -> some View {
+    private func cell(_ g: Grade?, expected: Int?) -> some View {
         if let g {
             GradeBadge(text: g.display, grade: g.level, size: 34)
         } else if let e = expected {

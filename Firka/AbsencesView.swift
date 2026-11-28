@@ -5,9 +5,9 @@ struct AbsencesView: View {
     @State private var filter = AbsenceFilter.all
 
     var body: some View {
-        let all = store.data.absences.sorted { $0.datum > $1.datum }
+        let all = store.data.absences.sorted { $0.date > $1.date }
         let stats = AbsenceStats(all)
-        let byDay = Dictionary(grouping: filter.apply(all)) { $0.datum.startOfDay }.sorted { $0.key > $1.key }
+        let byDay = Dictionary(grouping: filter.apply(all)) { $0.date.startOfDay }.sorted { $0.key > $1.key }
 
         NavigationStack {
             List {
@@ -33,7 +33,7 @@ struct AbsencesView: View {
 
                 if filter == .subjects {
                     Section {
-                        ForEach(AbsenceFilter.bySubject(all), id: \.subject.uid) { s in
+                        ForEach(AbsenceFilter.bySubject(all), id: \.subject.id) { s in
                             LabeledContent(s.subject.name, value: s.lateMinutes > 0 ? "\(s.absences) óra · \(s.lateMinutes) perc késés" : "\(s.absences) óra")
                                 .accessibilityIdentifier("absenceSubject")
                         }
@@ -41,15 +41,15 @@ struct AbsencesView: View {
                 } else {
                     ForEach(byDay, id: \.key) { day, items in
                         Section(day.hu("yMMMMd EEEE")) {
-                            ForEach(items.sorted { ($0.ora?.oraszam ?? 0) < ($1.ora?.oraszam ?? 0) }) { a in
+                            ForEach(items.sorted { ($0.lessonNumber ?? 0) < ($1.lessonNumber ?? 0) }) { a in
                                 NavigationLink(value: a) {
                                     HStack(spacing: 12) {
-                                        Text(a.ora?.oraszam.map { "\($0)." } ?? "")
+                                        Text(a.lessonNumber.map { "\($0)." } ?? "")
                                             .font(.headline.monospacedDigit()).frame(width: 30)
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text(a.tantargy.name)
-                                            Text([a.isLate ? "Késés, \(a.kesesPercben ?? 0) perc" : "Hiányzás",
-                                                  a.igazolasAllapota == "Igazolt" ? a.igazolasTipusa?.leiras : nil]
+                                            Text(a.subject.name)
+                                            Text([a.late ? "Késés, \(a.lateMinutes ?? 0) perc" : "Hiányzás",
+                                                  a.state == .excused ? a.excuse : nil]
                                                 .compactMap { $0 }.joined(separator: " · "))
                                                 .font(.caption).foregroundStyle(.secondary)
                                         }
@@ -69,28 +69,28 @@ struct AbsencesView: View {
             }
             .overlay { if all.isEmpty { ContentUnavailableView("Nincs hiányzásod", systemImage: "checkmark.seal") } }
             .navigationTitle("Hiányzások")
-            .navigationDestination(for: Mulasztas.self) { AbsenceDetail(absence: $0) }
+            .navigationDestination(for: Absence.self) { AbsenceDetail(absence: $0) }
             .refreshable { await store.refresh() }
         }
     }
 }
 
 struct AbsenceDetail: View {
-    let absence: Mulasztas
+    let absence: Absence
 
     var body: some View {
         let a = absence
         List {
-            LabeledContent("Dátum", value: a.datum.hu("yMMMMd EEEE"))
-            if let o = a.ora {
-                LabeledContent("Óra", value: [o.oraszam.map { "\($0)." }, "\(o.kezdoDatum.time)–\(o.vegDatum.time)"].compactMap { $0 }.joined(separator: " "))
+            LabeledContent("Dátum", value: a.date.hu("yMMMMd EEEE"))
+            if let start = a.lessonStart, let end = a.lessonEnd {
+                LabeledContent("Óra", value: [a.lessonNumber.map { "\($0)." }, "\(start.time)–\(end.time)"].compactMap { $0 }.joined(separator: " "))
             }
-            LabeledContent("Típus", value: a.isLate ? "Késés, \(a.kesesPercben ?? 0) perc" : "Hiányzás")
+            LabeledContent("Típus", value: a.late ? "Késés, \(a.lateMinutes ?? 0) perc" : "Hiányzás")
             LabeledContent("Állapot", value: a.stateShort).foregroundStyle(a.stateColor)
-            if a.igazolasAllapota == "Igazolt", let t = a.igazolasTipusa?.leiras { LabeledContent("Igazolás", value: t) }
-            if let t = a.rogzitoTanarNeve { LabeledContent("Rögzítette", value: t.renamedTeacher) }
+            if a.state == .excused, let t = a.excuse { LabeledContent("Igazolás", value: t) }
+            if let t = a.recordedBy { LabeledContent("Rögzítette", value: t.renamedTeacher) }
         }
-        .navigationTitle(a.tantargy.name)
+        .navigationTitle(a.subject.name)
     }
 }
 

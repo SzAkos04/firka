@@ -46,15 +46,15 @@ struct MiscTests {
     @Test("notice board items and teacher notes with the same KRÉTA id stay separate")
     func messageIds() {
         var s = Snapshot()
-        s.notices = [FaliujsagElem(uid: "1", ervenyessegKezdete: .now, cim: "Faliújság")]
-        s.notes = [Feljegyzes(uid: "1", cim: "Feljegyzés", datum: .now)]
+        s.messageList = [Message(kreta: FaliujsagElem(uid: "1", ervenyessegKezdete: .now, cim: "Faliújság")),
+                         Message(kreta: Feljegyzes(uid: "1", cim: "Feljegyzés", datum: .now))]
         #expect(Set(s.messages.map(\.id)).count == 2)
     }
 
-    @Test func absences() throws {
-        let late: [Mulasztas] = try decode(#"[{"Uid":"1","Tantargy":\#(subjectJSON),"Datum":"2025-11-09T23:00:00Z","Tipus":{"Nev":"Keses"},"KesesPercben":7,"IgazolasAllapota":"Igazolt"},{"Uid":"2","Tantargy":\#(subjectJSON),"Datum":"2025-11-09T23:00:00Z","Tipus":{"Nev":"hianyzas"},"IgazolasAllapota":"Igazolatlan"}]"#)
-        #expect(late[0].isLate && late[0].stateLabel == "Igazolt késés (7 perc)")
-        #expect(!late[1].isLate && late[1].stateShort == "Igazolatlan")
+    @Test func absenceLabels() throws {
+        let late = try absences(#"[{"Uid":"1","Tantargy":\#(subjectJSON),"Datum":"2025-11-09T23:00:00Z","Tipus":{"Nev":"Keses"},"KesesPercben":7,"IgazolasAllapota":"Igazolt"},{"Uid":"2","Tantargy":\#(subjectJSON),"Datum":"2025-11-09T23:00:00Z","Tipus":{"Nev":"hianyzas"},"IgazolasAllapota":"Igazolatlan"}]"#)
+        #expect(late[0].late && late[0].stateLabel == "Igazolt késés (7 perc)")
+        #expect(!late[1].late && late[1].stateShort == "Igazolatlan")
     }
 
     // Pure check: other tests run in parallel and read the shared renames, so don't change them here.

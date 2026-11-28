@@ -31,7 +31,7 @@ struct AttachmentTests {
         ("../titok", ".._titok"),
     ])
     func safeName(_ name: String, _ expected: String) {
-        #expect(Csatolmany(azonosito: 1, fajlNev: name).safeFileName == expected)
+        #expect(Attachment(id: "1", name: name, url: URL(string: "https://x.test/1")!).safeFileName == expected)
     }
 }
 
@@ -104,7 +104,7 @@ struct SurpriseTests {
         let g = try grades(gradeJSON("a", 5, 100, date: "2025-10-03T08:00:00Z"),
                            gradeJSON("b", 4, 100, date: "2025-10-01T08:00:00Z"),
                            gradeJSON("c", 3, 100, date: "2025-10-02T08:00:00Z"))
-        #expect(AppStore.surprises(g, seen: ["b"], on: true).map(\.uid) == ["c", "a"])
+        #expect(AppStore.surprises(g, seen: ["b"], on: true).map(\.id) == ["c", "a"])
         #expect(AppStore.surprises(g, seen: ["b"], on: false).isEmpty)
         #expect(AppStore.surprises(g, seen: nil, on: true).isEmpty)
     }

@@ -27,7 +27,8 @@ extension Grade {
         let value: Value = switch g.ertekFajta.nev { case "Osztalyzat": .grade; case "Szazalekos": .percent; default: .text }
         self.init(id: g.uid, date: g.keszitesDatuma, recorded: g.rogzitesDatuma, subject: Subject(kreta: g.tantargy),
                   kind: kind, value: value, number: g.szamErtek, text: g.szovegesErtek, shortText: g.szovegesErtekelesRovidNev,
-                  weight: g.sulySzazalekErteke, credit: nil, topic: g.tema, mode: g.mod?.leiras, teacher: g.ertekeloTanarNeve)
+                  weight: g.sulySzazalekErteke, credit: nil, topic: g.tema, mode: g.mod?.leiras, teacher: g.ertekeloTanarNeve,
+                  kindText: g.tipus.leiras)
     }
 }
 
@@ -57,4 +58,23 @@ extension AnnouncedTest {
 
 extension Attachment {
     init(kreta c: Csatolmany) { self.init(id: String(c.azonosito), name: c.fajlNev, url: c.downloadURL) }
+}
+
+extension Message {
+    init(kreta n: FaliujsagElem) {
+        self.init(id: "n" + n.uid, title: n.cim ?? "Üzenet", author: n.rogzitoNeve, date: n.ervenyessegKezdete, html: n.tartalom ?? "")
+    }
+
+    init(kreta f: Feljegyzes) {
+        self.init(id: "f" + f.uid, title: f.cim ?? f.tipus?.leiras ?? "Feljegyzés", author: f.keszitoTanarNeve, date: f.datum,
+                  html: f.tartalomFormazott ?? f.tartalom ?? "")
+    }
+
+    /// The list only has the first 100 characters; AppStore.fullMessage downloads the rest.
+    init(kreta p: PostaladaElem) {
+        let u = p.uzenet
+        self.init(id: p.id, title: u.targy ?? "Üzenet", author: u.feladoNev, authorRole: u.feladoTitulus, date: u.kuldesDatum,
+                  html: u.szoveg ?? "", attachments: (u.csatolmanyok ?? []).map(Attachment.init(kreta:)),
+                  unread: p.isElolvasva == false)
+    }
 }

@@ -7,21 +7,25 @@ import WidgetKit
 struct Snapshot: Codable {
     var studentName = ""
     var schoolName: String?
-    var grades: [Ertekeles] = []
-    var lessons: [Ora] = []          // this week + next week
-    var absences: [Mulasztas] = []
-    var homework: [HaziFeladat] = []
-    var tests: [Szamonkeres] = []
-    var notices: [FaliujsagElem] = []
-    var notes: [Feljegyzes] = []
-    var classAverages: [String: Double]?  // subject uid -> class average; optional so older caches still decode
-    var inbox: [PostaladaElem]?  // teacher messages; nil in caches from before it existed
-    var inboxBodies: [String: String]?  // full message texts (the list only has the first 100 characters)
+    var grades: [Grade] = []
+    var lessons: [Lesson] = []       // this week + next week
+    var absences: [Absence] = []
+    var homework: [Homework] = []
+    var tests: [AnnouncedTest] = []
+    /// As the lists give them (teacher messages shortened); `messages` adds the full texts downloaded since.
+    var messageList: [Message] = []
+    /// Message sources (id prefixes) that have loaded at least once: a source's first list is a baseline, not news.
+    var messageSources: Set<String> = []
+    var classAverages: [String: Double]?  // subject id -> class average
+    var messageBodies: [String: String]?  // full message texts by message id
     var updated: Date?
 
-    static var file: URL { Shared.containerURL.appendingPathComponent("snapshot.json") }
+    /// v2: the app's own models (Domain.swift). The KRÉTA-shaped cache of earlier builds is dropped, one sync refills it.
+    static var file: URL { Shared.containerURL.appendingPathComponent("snapshot-v2.json") }
+    private static var oldFile: URL { Shared.containerURL.appendingPathComponent("snapshot.json") }
 
     static func load() -> Snapshot? {
+        try? FileManager.default.removeItem(at: oldFile)
         guard let data = try? Data(contentsOf: file) else { return nil }
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
@@ -47,9 +51,9 @@ struct Snapshot: Codable {
 
     /// Lessons in the form the widget and the Live Activity use.
     var widgetLessons: [WidgetLesson] {
-        lessons.filter { !$0.isEvent && !HiddenLessons.shared.isHidden($0) }.sorted { $0.kezdetIdopont < $1.kezdetIdopont }.map {
-            WidgetLesson(subject: $0.title, room: $0.teremNeve, start: $0.kezdetIdopont, end: $0.vegIdopont,
-                         number: $0.oraszam, cancelled: $0.isCancelled, substituted: $0.helyettesTanarNeve != nil)
+        lessons.filter { !$0.isEvent && !HiddenLessons.shared.isHidden($0) }.sorted { $0.start < $1.start }.map {
+            WidgetLesson(subject: $0.title, room: $0.room, start: $0.start, end: $0.end,
+                         number: $0.number, cancelled: $0.cancelled, substituted: $0.substitute != nil)
         }
     }
 
@@ -60,73 +64,6 @@ struct Snapshot: Codable {
         try? e.encode(items).write(to: Shared.widgetFile, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         WidgetCenter.shared.reloadAllTimelines()
     }
-
-    /// Downloads everything from KRÉTA in parallel. Student, grades and timetable must succeed;
-    /// the rest fall back to `old` so one flaky endpoint doesn't block the whole refresh.
-    static func fetch(_ c: KretaClient, old: Snapshot?) async throws -> Snapshot {
-        let now = Date()
-        let week = now.startOfWeek
-        let sept1 = Calendar.hu.date(from: DateComponents(year: Calendar.hu.component(.year, from: now), month: 9, day: 1))!
-        let schoolStart = sept1 > now ? Calendar.hu.date(byAdding: .year, value: -1, to: sept1)! : sept1
-
-        async let student: TanuloAdatlap = c.get("TanuloAdatlap")
-        async let grades: [Ertekeles] = c.list("Ertekelesek")
-        async let w1 = c.week(week)
-        async let w2 = c.week(week.adding(days: 7))
-        async let absences = soft("Mulasztasok", old?.absences ?? []) { try await c.list("Mulasztasok") }
-        async let homework = soft("HaziFeladatok", old?.homework ?? []) { try await c.list("HaziFeladatok", from: schoolStart) }
-        async let tests = soft("BejelentettSzamonkeresek", old?.tests ?? []) { try await c.list("BejelentettSzamonkeresek") }
-        async let notices = soft("FaliujsagElemek", old?.notices ?? []) { try await c.list("FaliujsagElemek") }
-        async let notes = soft("Feljegyzesek", old?.notes ?? []) { try await c.list("Feljegyzesek") }
-        async let classAvg = classAverages(c)
-        // nil until it first loads, so the first good list is a baseline for the notifications (Notifier.changes)
-        async let inbox: [PostaladaElem]? = soft("postaladaelemek", old?.inbox) {
-            let all: [PostaladaElem] = try await c.list(fullURL: "https://eugyintezes.e-kreta.hu/api/v1/kommunikacio/postaladaelemek/sajat")
-            return all.filter { $0.tipus?.kod == "BEERKEZETT" && $0.isToroltElem != true }
-        }
-
-        let s = try await student
-        return try await Snapshot(studentName: s.nev, schoolName: s.intezmenyNev, grades: grades,
-                                  lessons: w1 + w2, absences: absences, homework: homework, tests: tests,
-                                  notices: notices, notes: notes,
-                                  classAverages: classAvg ?? old?.classAverages,  // keep the last known ones on failure
-                                  inbox: inbox, inboxBodies: old?.inboxBodies,
-                                  updated: now)
-    }
-
-    static func soft<T>(_ name: String, _ fallback: T, _ op: () async throws -> T) async throws -> T {
-        do {
-            return try await op()
-        } catch KretaError.reauth {
-            throw KretaError.reauth
-        } catch where isCancellation(error) {
-            throw CancellationError()
-        } catch {
-            log.error("\(name, privacy: .public) failed, keeping cached: \(String(describing: error), privacy: .public)")
-            return fallback
-        }
-    }
-
-    /// Optional extra: a failure here (or a school that hides class averages) must not fail the sync.
-    static func classAverages(_ c: KretaClient) async -> [String: Double]? {
-        do {
-            let groups: [OsztalyCsoport] = try await c.get("OsztalyCsoportok")
-            let tasks = Set(groups.filter { $0.isAktiv != false }
-                .compactMap { $0.oktatasNevelesiFeladat?.uid?.split(separator: ",").first.map(String.init) })
-            var result: [String: Double] = [:]
-            for t in tasks {
-                // the parameter is sent twice, like firka (and the official app) do
-                let q = [URLQueryItem(name: "oktatasiNevelesiFeladatUid", value: t), URLQueryItem(name: "oktatasiNevelesiFeladatUid", value: t)]
-                let avgs: [OsztalyAtlag] = try await c.list("Ertekelesek/Atlagok/OsztalyAtlagok", query: q)
-                for a in avgs { if let v = a.osztalyCsoportAtlag, v > 0 { result[a.tantargy.uid] = v } }
-            }
-            log.info("class averages: \(result.count, privacy: .public) subjects from \(tasks.count, privacy: .public) groups")
-            return result
-        } catch {
-            log.error("class averages failed: \(String(describing: error), privacy: .public)")
-            return nil
-        }
-    }
 }
 
 @MainActor @Observable
@@ -136,7 +73,7 @@ final class AppStore {
     var needsReauth = false
     var loading = false
     var error: String?
-    private var weeks: [Date: [Ora]] = [:]
+    private var weeks: [Date: [Lesson]] = [:]
     private var client: KretaClient?
     var kretaClient: KretaClient? { client }
 
@@ -144,12 +81,12 @@ final class AppStore {
     /// nil: nothing to download (not a teacher message, or the demo). A failed download throws.
     func fullMessage(_ id: String) async throws -> String? {
         guard id.hasPrefix("p"), let n = Int(id.dropFirst()) else { return nil }
-        if let body = data.inboxBodies?[String(n)] { return body }
+        if let body = data.messageBodies?[id] { return body }
         guard let client, let url = URL(string: "https://eugyintezes.e-kreta.hu/api/v1/kommunikacio/postaladaelemek/\(n)") else { return nil }
         do {
             let full = try Kreta.apiDecoder.decode(PostaladaElem.self, from: try await client.raw(url))
             let body = full.uzenet.szoveg ?? ""
-            data.inboxBodies = (data.inboxBodies ?? [:]).merging([String(n): body]) { $1 }
+            data.messageBodies = (data.messageBodies ?? [:]).merging([id: body]) { $1 }
             data.save(widget: false)
             return body
         } catch {
@@ -167,7 +104,7 @@ final class AppStore {
     var surpriseGrades = Pref.on(Pref.surpriseGrades) {
         didSet {
             UserDefaults.standard.set(surpriseGrades, forKey: Pref.surpriseGrades)
-            if surpriseGrades { seenGrades = Set(data.grades.map(\.uid)) }  // only grades from now on are surprises
+            if surpriseGrades { seenGrades = Set(data.grades.map(\.id)) }  // only grades from now on are surprises
         }
     }
 
@@ -176,42 +113,42 @@ final class AppStore {
         didSet { UserDefaults.standard.set(seenGrades.map(Array.init), forKey: Pref.seenGrades) }
     }
 
-    var hiddenGrades: [Ertekeles] { Self.surprises(data.grades, seen: seenGrades, on: surpriseGrades) }
+    var hiddenGrades: [Grade] { Self.surprises(data.grades, seen: seenGrades, on: surpriseGrades) }
 
     /// The grades still to flip, oldest first. `seen` is nil before the first sync: nothing is a surprise then.
-    nonisolated static func surprises(_ grades: [Ertekeles], seen: Set<String>?, on: Bool) -> [Ertekeles] {
+    nonisolated static func surprises(_ grades: [Grade], seen: Set<String>?, on: Bool) -> [Grade] {
         guard on, let seen else { return [] }
-        return grades.filter { !seen.contains($0.uid) }.sorted { $0.keszitesDatuma < $1.keszitesDatuma }
+        return grades.filter { !seen.contains($0.id) }.sorted { $0.date < $1.date }
     }
 
-    var visibleGrades: [Ertekeles] {
-        let hidden = Set(hiddenGrades.map(\.uid))
-        return data.grades.filter { !hidden.contains($0.uid) }
+    var visibleGrades: [Grade] {
+        let hidden = Set(hiddenGrades.map(\.id))
+        return data.grades.filter { !hidden.contains($0.id) }
     }
 
-    func isHidden(_ g: Ertekeles) -> Bool {
+    func isHidden(_ g: Grade) -> Bool {
         guard surpriseGrades, let seen = seenGrades else { return false }
-        return !seen.contains(g.uid)
+        return !seen.contains(g.id)
     }
 
     /// Revealed this session; they stay in the "új jegyek" section with their note until the next launch.
-    private(set) var revealed: [Ertekeles] = []
+    private(set) var revealed: [Grade] = []
     private(set) var revealNotes: [String: RevealNote] = [:]
 
-    var newGradeRows: [Ertekeles] {
-        (revealed + hiddenGrades).sorted { $0.keszitesDatuma < $1.keszitesDatuma }
+    var newGradeRows: [Grade] {
+        (revealed + hiddenGrades).sorted { $0.date < $1.date }
     }
 
-    func reveal(_ g: Ertekeles) {
+    func reveal(_ g: Grade) {
         guard isHidden(g) else { return }
-        let previous = visibleGrades.filter { $0.tantargy.uid == g.tantargy.uid }
-        revealNotes[g.uid] = g.revealNote(previous: previous, rounding: rounding)
+        let previous = visibleGrades.filter { $0.subject.id == g.subject.id }
+        revealNotes[g.id] = g.revealNote(previous: previous, rounding: rounding)
         revealed.append(g)
-        seenGrades?.insert(g.uid)
+        seenGrades?.insert(g.id)
     }
 
     private func seedSeenGrades() {
-        if seenGrades == nil, data.updated != nil { seenGrades = Set(data.grades.map(\.uid)) }
+        if seenGrades == nil, data.updated != nil { seenGrades = Set(data.grades.map(\.id)) }
     }
 
     init() {
@@ -246,17 +183,18 @@ final class AppStore {
         if env["FIRKA_DEMO"] == "reportCard" {
             let half = data.grades.prefix(3).map { g in
                 var h = g
-                h.uid += "-half"
-                h.tipus = NUD(uid: nil, nev: "felevi_jegy_ertekeles", leiras: "Félévi jegy")
-                h.sulySzazalekErteke = nil
+                h.id += "-half"
+                h.kind = .halfYear
+                h.kindText = "Félévi jegy"
+                h.weight = nil
                 return h
             }
             data.grades += half
-            seenGrades?.formUnion(half.map(\.uid))
+            seenGrades?.formUnion(half.map(\.id))
             data.save()
         }
         if let n = env["FIRKA_HIDE_NEWEST"].flatMap(Int.init) {
-            seenGrades = Set(data.grades.sorted { $0.keszitesDatuma < $1.keszitesDatuma }.dropLast(n).map(\.uid))
+            seenGrades = Set(data.grades.sorted { $0.date < $1.date }.dropLast(n).map(\.id))
         }
         #endif
     }
@@ -346,15 +284,15 @@ final class AppStore {
     /// Lessons for any week (cached in memory; the current two weeks come from the snapshot).
     private static let timetableError = "Nem sikerült betölteni az órarendet."
 
-    func lessons(week: Date) async -> [Ora] {
+    func lessons(week: Date) async -> [Lesson] {
         if let w = weeks[week] { return w }
         let end = week.adding(days: 7)
-        let cached = data.lessons.filter { $0.kezdetIdopont >= week && $0.kezdetIdopont < end }
+        let cached = data.lessons.filter { $0.start >= week && $0.start < end }
         // the snapshot holds its own sync's week and the next: those come from it, whatever today is
         let synced = data.updated?.startOfWeek
         guard let client, week != synced, week != synced?.adding(days: 7) else { return cached }
         do {
-            let w = try await client.week(week)
+            let w = try await client.week(week).map(Lesson.init(kreta:))
             weeks[week] = w
             if error == Self.timetableError { error = nil }
             return w
@@ -374,7 +312,7 @@ final class AppStore {
         data = .demo
         data.save()
         // leave the 3 newest grades as surprises
-        seenGrades = Set(data.grades.sorted { $0.keszitesDatuma < $1.keszitesDatuma }.dropLast(3).map(\.uid))
+        seenGrades = Set(data.grades.sorted { $0.date < $1.date }.dropLast(3).map(\.id))
         loggedIn = true
     }
     #endif
@@ -418,13 +356,13 @@ enum Notifier {
 
     /// What the phone itself announces: nothing while the owner's server sends the notifications (ServerPush).
     static func toPost(old: Snapshot, new: Snapshot, server: Bool, enabled: (String) -> Bool, surprise: Bool,
-                       isHidden: (Ora) -> Bool) -> [Alert] {
+                       isHidden: (Lesson) -> Bool) -> [Alert] {
         server ? [] : changes(old: old, new: new, now: Date(), enabled: enabled, surprise: surprise, isHidden: isHidden)
     }
 
     /// What's new between two syncs, as notifications. Pure, so the rules are testable.
     static func changes(old: Snapshot, new: Snapshot, now: Date, enabled: (String) -> Bool, surprise: Bool,
-                        isHidden: (Ora) -> Bool) -> [Alert] {
+                        isHidden: (Lesson) -> Bool) -> [Alert] {
         // First sync after login: nothing to compare against, don't spam the whole year.
         guard old.updated != nil, old.studentName == new.studentName else { return [] }
         var out: [Alert] = []
@@ -443,42 +381,42 @@ enum Notifier {
         if enabled("notifyGrades") {
             // with surprise grades on, don't spoil the value in the notification
             add("grades", "Új jegy érkezett", { "\($0) új jegy érkezett" },
-                diff(old.grades, new.grades).map { "\($0.tantargy.name): \(surprise ? "új jegy" : $0.display)" })
+                diff(old.grades, new.grades).map { "\($0.subject.name): \(surprise ? "új jegy" : $0.display)" })
             // the same grade with another value: the teacher corrected it
-            let was = Dictionary(old.grades.map { ($0.uid, $0.display) }, uniquingKeysWith: { a, _ in a })
+            let was = Dictionary(old.grades.map { ($0.id, $0.display) }, uniquingKeysWith: { a, _ in a })
             add("edited", "Módosult egy jegy", { "\($0) jegy módosult" }, new.grades.compactMap { g in
-                guard let before = was[g.uid], before != g.display else { return nil }
-                return "\(g.tantargy.name): \(surprise ? "módosult" : "\(before) → \(g.display)")"
+                guard let before = was[g.id], before != g.display else { return nil }
+                return "\(g.subject.name): \(surprise ? "módosult" : "\(before) → \(g.display)")"
             })
         }
         if enabled("notifyLessons"), !old.lessons.isEmpty {
-            let wasCancelled = Set(old.lessons.filter(\.isCancelled).map(\.id))
-            let wasSubst = Dictionary(old.lessons.map { ($0.id, $0.helyettesTanarNeve) }, uniquingKeysWith: { a, _ in a })
-            let future = new.lessons.filter { !$0.isEvent && $0.vegIdopont > now && !isHidden($0) }
+            let wasCancelled = Set(old.lessons.filter(\.cancelled).map(\.id))
+            let wasSubst = Dictionary(old.lessons.map { ($0.id, $0.substitute) }, uniquingKeysWith: { a, _ in a })
+            let future = new.lessons.filter { !$0.isEvent && $0.end > now && !isHidden($0) }
             add("cancelled", "Elmaradt óra", { "\($0) elmaradt óra" },
-                future.filter { $0.isCancelled && !wasCancelled.contains($0.id) }
-                    .map { "\($0.title) – \($0.kezdetIdopont.hu("EEEE HH:mm"))" })
+                future.filter { $0.cancelled && !wasCancelled.contains($0.id) }
+                    .map { "\($0.title) – \($0.start.hu("EEEE HH:mm"))" })
             add("substituted", "Helyettesítés", { "\($0) helyettesítés" },
-                future.filter { !$0.isCancelled && $0.helyettesTanarNeve != nil && wasSubst[$0.id] != $0.helyettesTanarNeve }
-                    .map { "\($0.title): \($0.helyettesTanarNeve?.renamedTeacher ?? "") (\($0.kezdetIdopont.hu("EEEE HH:mm")))" })
+                future.filter { !$0.cancelled && $0.substitute != nil && wasSubst[$0.id] != $0.substitute }
+                    .map { "\($0.title): \($0.substitute?.renamedTeacher ?? "") (\($0.start.hu("EEEE HH:mm")))" })
         }
         if enabled("notifyHomework") {
-            add("homework", "Új házi feladat", { "\($0) új házi feladat" }, diff(old.homework, new.homework).map { $0.tantargy.name })
+            add("homework", "Új házi feladat", { "\($0) új házi feladat" }, diff(old.homework, new.homework).map { $0.subject.name })
             add("tests", "Új számonkérés", { "\($0) új számonkérés" },
-                diff(old.tests, new.tests).map { "\($0.tantargy.name): \($0.temaja ?? $0.modja?.leiras ?? "")" })
+                diff(old.tests, new.tests).map { "\($0.subject.name): \($0.topic ?? $0.mode ?? "")" })
         }
         if enabled("notifyAbsences") {
             add("absences", "Új hiányzás/késés", { "\($0) új hiányzás/késés" },
-                diff(old.absences, new.absences).map { "\($0.tantargy.name): \($0.stateLabel)" })
+                diff(old.absences, new.absences).map { "\($0.subject.name): \($0.stateLabel)" })
             // KRÉTA keeps the absence and changes its state; unexcused is the one that matters
-            let wasUnexcused = Dictionary(old.absences.map { ($0.uid, $0.igazolasAllapota == "Igazolatlan") }, uniquingKeysWith: { a, _ in a })
+            let wasUnexcused = Dictionary(old.absences.map { ($0.id, $0.state == .unexcused) }, uniquingKeysWith: { a, _ in a })
             add("unexcused", "Igazolatlan lett", { "\($0) mulasztás igazolatlan lett" },
-                new.absences.filter { $0.igazolasAllapota == "Igazolatlan" && wasUnexcused[$0.uid] == false }
-                    .map { "\($0.tantargy.name): \($0.stateLabel)" })
+                new.absences.filter { $0.state == .unexcused && wasUnexcused[$0.id] == false }
+                    .map { "\($0.subject.name): \($0.stateLabel)" })
         }
         if enabled("notifyMessages") {
-            // The first sync with teacher messages would otherwise announce years of them.
-            let baseline = old.inbox == nil ? old.messages + new.messages.filter { $0.id.hasPrefix("p") } : old.messages
+            // A source's first list (e.g. the first sync with teacher messages) would otherwise announce years of them.
+            let baseline = old.messages + new.messages.filter { !old.messageSources.contains($0.source) }
             add("messages", "Új üzenet", { "\($0) új üzenet" }, diff(baseline, new.messages).map(\.title))
         }
         return out

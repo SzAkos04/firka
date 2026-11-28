@@ -34,7 +34,6 @@ struct KretaMappingTests {
         let g = try grades(gradeJSON("a", 4, 200), gradeJSON("b", 80, 100, valueType: "Szazalekos"),
                                  gradeJSON("c", nil, nil, valueType: "Szoveges", text: "Kiválóan teljesített", short: "Kiváló"),
                                  gradeJSON("d", 5, nil, kind: "felevi_jegy_ertekeles"), gradeJSON("e", 4, nil, kind: "evvegi_jegy_ertekeles"))
-            .map(Grade.init(kreta:))
         #expect(g[0].kind == .midYear && g[0].value == .grade && g[0].number == 4 && g[0].weight == 200)
         #expect(g[0].subject == math && g[0].topic == "Törtek" && g[0].mode == "Írásbeli röpdolgozat" && g[0].teacher == "Kovács Anna")
         #expect(g[0].date == g[0].recorded && g[0].credit == nil)

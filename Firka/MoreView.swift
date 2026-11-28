@@ -35,8 +35,8 @@ struct MoreView: View {
                 case .hidden: HiddenLessonsView()
                 }
             }
-            .navigationDestination(for: HaziFeladat.self) { HomeworkDetail(hw: $0) }
-            .navigationDestination(for: Szamonkeres.self) { TestDetail(test: $0) }
+            .navigationDestination(for: Homework.self) { HomeworkDetail(hw: $0) }
+            .navigationDestination(for: AnnouncedTest.self) { TestDetail(test: $0) }
             .navigationDestination(for: Message.self) { MessageDetail(message: $0) }
         }
     }
@@ -47,7 +47,7 @@ struct HomeworkList: View {
 
     var body: some View {
         let today = Date().startOfDay
-        let (upcoming, past) = HomeLogic.split(store.data.homework, today: today, date: \.hataridoDatuma)
+        let (upcoming, past) = HomeLogic.split(store.data.homework, today: today, date: \.due)
         List {
             if !upcoming.isEmpty { Section("Közelgő") { ForEach(upcoming) { h in NavigationLink(value: h) { HomeworkRow(hw: h) } } } }
             if !past.isEmpty { Section("Korábbi") { ForEach(past) { h in NavigationLink(value: h) { HomeworkRow(hw: h) } } } }
@@ -63,7 +63,7 @@ struct TestsList: View {
 
     var body: some View {
         let today = Date().startOfDay
-        let (upcoming, past) = HomeLogic.split(store.data.tests, today: today, date: \.datum)
+        let (upcoming, past) = HomeLogic.split(store.data.tests, today: today, date: \.date)
         List {
             if !upcoming.isEmpty { Section("Közelgő") { ForEach(upcoming) { t in NavigationLink(value: t) { TestRow(test: t) } } } }
             if !past.isEmpty { Section("Korábbi") { ForEach(past) { t in NavigationLink(value: t) { TestRow(test: t) } } } }
