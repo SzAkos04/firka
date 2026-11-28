@@ -69,3 +69,13 @@ struct MiscTests {
         #expect(4.386.hu2 == "4,39" && 4.384.hu2 == "4,38" && 5.0.hu2 == "5,00")
     }
 }
+
+@Suite("Background refresh")
+struct BackgroundTests {
+    @Test("its task id follows the app's own id (APP_ID), the same in the code and in Info.plist")
+    func taskID() throws {
+        let permitted = try #require(Bundle.main.object(forInfoDictionaryKey: "BGTaskSchedulerPermittedIdentifiers") as? [String])
+        #expect(Background.id == (Bundle.main.bundleIdentifier ?? "") + ".refresh")
+        #expect(permitted == [Background.id])
+    }
+}

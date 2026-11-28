@@ -8,6 +8,7 @@ struct TimetableView: View {
     @State private var loading = false
     @AppStorage(Pref.timetableMonth) private var monthMode = false
     @State private var showHidden = false
+    @ScaledMetric(relativeTo: .headline) private var titleWidth = 140.0  // fixed, so the arrows don't move from week to week
 
     /// Days with real lessons: the cached this/next week plus the loaded one.
     private var lessonDays: Set<Date> { TimetableNav.lessonDays(store.data.lessons + lessons) }
@@ -48,7 +49,7 @@ struct TimetableView: View {
                         .accessibilityLabel("Előző hét").accessibilityIdentifier("previousWeek")
                     Text("\(week.hu("MMMd")) – \(week.adding(days: 6).hu("MMMd"))").font(.headline)
                         .lineLimit(1).minimumScaleFactor(0.8)
-                        .frame(width: 140)
+                        .frame(width: titleWidth)
                         .accessibilityIdentifier("weekTitle")
                     Button { move(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44).contentShape(Rectangle()) }
                         .accessibilityLabel("Következő hét").accessibilityIdentifier("nextWeek")
@@ -236,7 +237,9 @@ struct MonthTimetable: View {
         let weeks = stride(from: 0, to: 6, by: 1).map { month.startOfWeek.adding(days: 7 * $0) }.filter { $0 < end }
         let all = await withTaskGroup(of: [Ora].self) { g in
             for w in weeks { g.addTask { await store.lessons(week: w) } }
-            return await g.reduce(into: []) { $0 += $1 }
+            var all: [Ora] = []
+            for await w in g { all += w }
+            return all
         }
         guard !Task.isCancelled else { return }  // paged on to another month
         lessons = all.filter { $0.kezdetIdopont >= month && $0.kezdetIdopont < end }

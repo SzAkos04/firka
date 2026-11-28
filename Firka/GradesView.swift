@@ -258,6 +258,7 @@ struct GradeStrip: View {
 struct ReportCardSection: View {
     let grades: [Ertekeles]
     @Environment(AppStore.self) private var store
+    @ScaledMetric private var column = 56.0
 
     var body: some View {
         let card = grades.reportCard(store.rounding)
@@ -265,8 +266,8 @@ struct ReportCardSection: View {
             HStack {
                 Text("Tantárgy")
                 Spacer()
-                Text("Félév").frame(width: 56)
-                Text("Év vége").frame(width: 56)
+                Text("Félév").frame(width: column)
+                Text("Év vége").frame(width: column)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -275,8 +276,8 @@ struct ReportCardSection: View {
                 HStack {
                     Text(row.subject.name).lineLimit(2)
                     Spacer()
-                    cell(row.half, expected: card.upcoming == .half ? row.expected : nil).frame(width: 56)
-                    cell(row.end, expected: card.upcoming == .end ? row.expected : nil).frame(width: 56)
+                    cell(row.half, expected: card.upcoming == .half ? row.expected : nil).frame(width: column)
+                    cell(row.end, expected: card.upcoming == .end ? row.expected : nil).frame(width: column)
                 }
             }
 
@@ -284,9 +285,9 @@ struct ReportCardSection: View {
                 Text("Átlag").font(.headline)
                 Spacer()
                 Text(columnAverage(card.rows.map { $0.half?.level ?? (card.upcoming == .half ? $0.expected : nil) }))
-                    .frame(width: 56)
+                    .frame(width: column)
                 Text(columnAverage(card.rows.map { $0.end?.level ?? (card.upcoming == .end ? $0.expected : nil) }))
-                    .frame(width: 56)
+                    .frame(width: column)
             }
             .font(.headline.monospacedDigit())
         } footer: {

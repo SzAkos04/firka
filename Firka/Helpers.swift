@@ -68,6 +68,14 @@ struct Message: Identifiable, Hashable {
     var unread = false
 }
 
+extension Snapshot {
+    /// Message texts are downloaded one by one while a sync may be running: keep the ones it doesn't know of.
+    mutating func keepBodies(from other: Snapshot?) {
+        guard let more = other?.inboxBodies else { return }
+        inboxBodies = more.merging(inboxBodies ?? [:]) { _, mine in mine }
+    }
+}
+
 /// The messages screen's filter: which source, and a search.
 enum MessageFilter: String, CaseIterable {
     case all = "Mind", inbox = "Üzenetek", notices = "Faliújság", notes = "Feljegyzések"
@@ -105,8 +113,10 @@ struct GradeBadge: View {
     let text: String
     let grade: Int?  // nil: neutral gray (text grades, no average)
     var size: CGFloat = 36
+    @ScaledMetric private var scale = 1.0  // grows with the text size setting
 
     var body: some View {
+        let size = size * scale
         Text(text)
             .font(.system(size: size * 0.42, weight: .semibold, design: .rounded).monospacedDigit())
             .minimumScaleFactor(0.4)
@@ -137,18 +147,19 @@ struct AverageBadge: View {
 struct HTMLText: View {
     let html: String
     @State private var text: AttributedString?
+    @ScaledMetric(relativeTo: .body) private var size = 17.0  // the body text size, as the text size setting makes it
 
     var body: some View {
         Group {
             if let text { Text(text).textSelection(.enabled) } else { Text(html.strippingTags) }
         }
-        .task(id: html) { text = Self.render(html) }
+        .task(id: "\(size)\(html)") { text = Self.render(html, size: size) }
     }
 
-    static func render(_ html: String) -> AttributedString? {
+    static func render(_ html: String, size: Double = 17) -> AttributedString? {
         // no images/scripts: the HTML importer would load remote resources synchronously on the main thread
         let safe = html.replacingOccurrences(of: String.codeBlocks + "|<(img|link|iframe)[^>]*>", with: "", options: [.regularExpression, .caseInsensitive])
-        let styled = "<style>body{font-family:-apple-system;font-size:17px}</style>" + safe
+        let styled = "<style>body{font-family:-apple-system;font-size:\(size)px}</style>" + safe
         guard let ns = try? NSMutableAttributedString(
             data: Data(styled.utf8),
             options: [.documentType: NSAttributedString.DocumentType.html, .characterEncoding: String.Encoding.utf8.rawValue],
@@ -179,7 +190,8 @@ extension String {
         }
     }
 
-    private static let entity = try! Regex("&(#[xX]?[0-9a-fA-F]+|[a-zA-Z]+);")
+    // immutable: matching doesn't change it
+    nonisolated(unsafe) private static let entity = try! Regex("&(#[xX]?[0-9a-fA-F]+|[a-zA-Z]+);")
     /// What HTML editors write in Hungarian texts, lower and upper case.
     private static let namedEntities: [String: String] = {
         var e = ["nbsp": " ", "quot": "\"", "apos": "'", "lt": "<", "gt": ">", "amp": "&", "ndash": "–", "mdash": "—",

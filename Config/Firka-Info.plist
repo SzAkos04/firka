@@ -23,7 +23,7 @@
 	<string>group.$(APP_ID)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>hu.firkaios.app.refresh</string>
+		<string>$(APP_ID).refresh</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

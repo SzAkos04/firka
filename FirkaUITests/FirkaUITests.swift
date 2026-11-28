@@ -2,10 +2,11 @@ import XCTest
 
 /// The real app, tapped through in demo mode (fake data, no KRÉTA account, no network).
 /// Catches what unit tests can't: a screen that crashes, a button that does nothing, wrong navigation.
+@MainActor
 final class FirkaUITests: XCTestCase {
     var app: XCUIApplication!
 
-    override func setUp() {
+    override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchEnvironment["FIRKA_DEMO"] = "1"  // fresh demo data on every launch
@@ -139,6 +140,22 @@ final class FirkaUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         app.buttons["Tantárgyak"].tap()
         XCTAssertTrue(shows(app.staticTexts.matching(identifier: "absenceSubject").firstMatch))
+    }
+
+    /// The largest text sizes: fixed widths grow with the text instead of squeezing it.
+    func testLargeTextGrowsTheWeekTitle() {
+        let normal = weekTitleWidth()
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"]
+        app.launch()
+        XCTAssertGreaterThan(weekTitleWidth(), normal * 1.3)
+        XCTAssertTrue(app.buttons["nextWeek"].isHittable && app.buttons["previousWeek"].isHittable, "the arrows stay on screen")
+    }
+
+    private func weekTitleWidth() -> CGFloat {
+        tab("Órarend")
+        XCTAssertTrue(shows(weekTitle))
+        return weekTitle.frame.width
     }
 
     func testMonthViewAndBack() {

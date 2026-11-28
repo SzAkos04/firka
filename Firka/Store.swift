@@ -302,9 +302,10 @@ final class AppStore {
         loading = true
         defer { loading = false }
         do {
-            let new = try await Snapshot.fetch(client, old: data)
+            var new = try await Snapshot.fetch(client, old: data)
             guard self.client === client else { return }  // logged out (or switched) while downloading
             log.info("refresh ok: \(new.grades.count, privacy: .public) grades, \(new.lessons.count, privacy: .public) lessons, \(new.absences.count, privacy: .public) absences")
+            new.keepBodies(from: data)  // a message opened while it downloaded
             data = new
             data.save()
             seedSeenGrades()
@@ -482,10 +483,12 @@ enum Notifier {
 // MARK: - Background refresh
 
 enum Background {
-    static let id = "hu.firkaios.app.refresh"
+    /// "$(APP_ID).refresh", from Info.plist (BGTaskSchedulerPermittedIdentifiers), so the two can't drift apart.
+    static let id = (Bundle.main.object(forInfoDictionaryKey: "BGTaskSchedulerPermittedIdentifiers") as? [String])?.first ?? ""
 
     static func register() {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: id, using: nil) { task in
+            nonisolated(unsafe) let task = task  // iOS hands it to this handler alone
             schedule()
             let work = Task {
                 let ok = await run()
@@ -507,8 +510,9 @@ enum Background {
         UserDefaults.standard.set(Date(), forKey: Pref.lastBackgroundRun)  // shown in Settings: does iOS run us at all?
         guard let token = Token.load(), let old = Snapshot.load() else { return false }
         do {
-            let new = try await Snapshot.fetch(KretaClient(token: token), old: old)
+            var new = try await Snapshot.fetch(KretaClient(token: token), old: old)
             Notifier.post(old: old, new: new)
+            new.keepBodies(from: Snapshot.load())  // the app may have saved a message text meanwhile
             new.save()
             await LessonLive.sync(new.widgetLessons, canStart: false)
             return true

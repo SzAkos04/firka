@@ -39,7 +39,8 @@ struct HideRule: Codable, Hashable, Identifiable {
 
 @Observable
 final class HiddenLessons {
-    static let shared = HiddenLessons()
+    // changed from the UI (main thread); the background task only reads it while the UI is away
+    nonisolated(unsafe) static let shared = HiddenLessons()
 
     var rules: [HideRule] { didSet { UserDefaults.standard.set(try? JSONEncoder().encode(rules), forKey: Pref.hiddenLessons) } }
 

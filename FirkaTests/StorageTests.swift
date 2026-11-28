@@ -135,6 +135,18 @@ struct TextTests {
         #expect(m[2].title == "Kirándulás" && m[2].author == "Kovács Anna")
     }
 
+    @Test("a sync keeps the message texts downloaded while it ran (the app or the background task saved them)")
+    func keepBodies() {
+        var synced = Snapshot()
+        synced.inboxBodies = ["1": "régi"]
+        var meanwhile = Snapshot()
+        meanwhile.inboxBodies = ["1": "régi", "2": "közben letöltve"]
+        synced.keepBodies(from: meanwhile)
+        #expect(synced.inboxBodies == ["1": "régi", "2": "közben letöltve"])
+        synced.keepBodies(from: nil)
+        #expect(synced.inboxBodies?.count == 2)
+    }
+
     @Test("unread: a teacher message KRÉTA hasn't seen read, until its full text is opened here")
     func unread() throws {
         var s = Snapshot()
@@ -156,6 +168,13 @@ struct TextTests {
         #expect(MessageFilter.all.apply(m, search: "hetfon").map(\.id) == ["n1"], "text, without accents")
         #expect(MessageFilter.all.apply(m, search: "varga").map(\.id) == ["p1"], "sender")
         #expect(MessageFilter.notes.apply(m, search: "varga").isEmpty)
+    }
+
+    @MainActor @Test("message HTML follows the text size setting (Dynamic Type)", arguments: [17.0, 28.0])
+    func htmlTextSize(size: Double) throws {
+        let t = try #require(HTMLText.render("<p>Szia</p>", size: size))
+        let font = try #require(t.runs.first?.uiKit.font)
+        #expect(abs(font.pointSize - size) < 0.01, "got \(font.pointSize)")
     }
 
     @MainActor @Test("message HTML: no images or scripts are loaded, colours are dropped")

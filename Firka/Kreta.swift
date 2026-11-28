@@ -201,14 +201,15 @@ struct Token: Codable {
         return try? JSONDecoder().decode(Token.self, from: data)
     }
 
+    /// Replaces the token in place (update, else add): deleting first would leave a moment without one,
+    /// which the app and its background task, reading at the same time, would take as logged out.
     func save() {
-        Token.delete()
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-                                kSecAttrAccount as String: Token.account,
-                                // background refresh runs while the phone is locked
-                                kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
-                                kSecValueData as String: try! JSONEncoder().encode(self)]
-        let status = SecItemAdd(q as CFDictionary, nil)
+        let find: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrAccount as String: Token.account]
+        let value: [String: Any] = [// background refresh runs while the phone is locked
+                                    kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+                                    kSecValueData as String: try! JSONEncoder().encode(self)]
+        var status = SecItemUpdate(find as CFDictionary, value as CFDictionary)
+        if status == errSecItemNotFound { status = SecItemAdd(find.merging(value) { $1 } as CFDictionary, nil) }
         if status != errSecSuccess { log.error("keychain save failed: \(status, privacy: .public)") }
     }
 
@@ -275,8 +276,8 @@ enum Kreta {
     static let apiKey = "21ff6c25-d1da-4a68-a811-c881a6057463"
 
     // Formatters are expensive to create; these are thread-safe for parsing.
-    private static let iso = ISO8601DateFormatter()
-    private static let isoFraction: ISO8601DateFormatter = {
+    nonisolated(unsafe) private static let iso = ISO8601DateFormatter()
+    nonisolated(unsafe) private static let isoFraction: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f

@@ -9,7 +9,7 @@ import Testing
 /// URLSession.shared picks up registered protocol classes, so the app's code runs unchanged.
 final class Stub: URLProtocol {
     /// `until`: hold the answer back (off the stub's thread, so other requests go on) until it says true, at most 3 s.
-    struct Reply { var status = 200; var body = "[]"; var until: (() -> Bool)? = nil }
+    struct Reply { var status = 200; var body = "[]"; var until: (@Sendable () -> Bool)? = nil }
 
     nonisolated(unsafe) static var route: (URLRequest) -> Reply = { _ in Reply(status: 404, body: "") }
     nonisolated(unsafe) private static var log: [URLRequest] = []
@@ -38,7 +38,7 @@ final class Stub: URLProtocol {
         var r = request
         if r.httpBody == nil, let stream = r.httpBodyStream { r.httpBody = Data(reading: stream) }
         let reply = Stub.lock.withLock { Stub.log.append(r); return Stub.route }(r)
-        let answer = { [self] in
+        nonisolated(unsafe) let answer = { [self] in
             client?.urlProtocol(self, didReceive: HTTPURLResponse(url: r.url!, statusCode: reply.status, httpVersion: nil, headerFields: nil)!,
                                 cacheStoragePolicy: .notAllowed)
             client?.urlProtocol(self, didLoad: Data(reply.body.utf8))

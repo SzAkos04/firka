@@ -5,7 +5,8 @@ import SwiftUI
 /// Observable, so every screen that shows a name updates as soon as one is changed.
 @Observable
 final class Renames {
-    static let shared = Renames()
+    // changed from the UI (main thread); the background task only reads it while the UI is away
+    nonisolated(unsafe) static let shared = Renames()
 
     var subjects: [String: String] { didSet { UserDefaults.standard.set(subjects, forKey: Pref.renameSubjects) } }
     var teachers: [String: String] { didSet { UserDefaults.standard.set(teachers, forKey: Pref.renameTeachers) } }

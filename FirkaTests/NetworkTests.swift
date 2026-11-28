@@ -125,7 +125,7 @@ extension Global {
         @Test("two requests turned away with the same token: one renewal, even when the second 401 comes after it")
         func late401() async throws {
             testToken().save()
-            let retried = { Stub.requests.contains { $0.url?.path.hasSuffix("Ertekelesek") == true && $0.value(forHTTPHeaderField: "authorization") == "Bearer acc2" } }
+            let retried: @Sendable () -> Bool = { Stub.requests.contains { $0.url?.path.hasSuffix("Ertekelesek") == true && $0.value(forHTTPHeaderField: "authorization") == "Bearer acc2" } }
             Stub.start { r in
                 if r.url?.path == "/connect/token" { return .init(body: grantJSON(access: "acc2")) }
                 if r.value(forHTTPHeaderField: "authorization") != "Bearer acc1" { return .init(body: "[]") }
@@ -197,6 +197,19 @@ extension Global {
             #expect(Token.load()?.accessToken == "y")
             Token.delete()
             #expect(Token.load() == nil)
+        }
+
+        @Test("saving a renewed token replaces it in place: a reader at the same time (the other process) never finds none")
+        func keychainNoGap() async {
+            testToken(access: "a").save()
+            let reader = Task.detached {
+                var missing = 0
+                for _ in 0..<2000 where Token.load() == nil { missing += 1 }
+                return missing
+            }
+            for i in 0..<300 { testToken(access: "t\(i)").save() }
+            #expect(await reader.value == 0)
+            #expect(Token.load()?.accessToken == "t299")
         }
     }
 }

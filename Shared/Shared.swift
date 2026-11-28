@@ -122,7 +122,7 @@ extension Date {
 /// One DateFormatter per template; creating them is slow and `hu` runs in every list row.
 private enum HUFormat {
     private static let lock = NSLock()
-    private static var cache: [String: DateFormatter] = [:]
+    nonisolated(unsafe) private static var cache: [String: DateFormatter] = [:]  // only under `lock`
 
     static func formatter(_ template: String) -> DateFormatter {
         lock.lock()

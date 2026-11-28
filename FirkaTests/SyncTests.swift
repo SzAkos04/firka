@@ -46,7 +46,7 @@ extension Global {
     @MainActor @Suite("Sync and app state", .serialized)
     final class Sync {
         private let keys = [Pref.demo, Pref.seenGrades, Pref.surpriseGrades, Pref.liveActivity]
-        private let savedPrefs: [String: Any]
+        nonisolated(unsafe) private let savedPrefs: [String: Any]  // read back in deinit
         private let savedToken = Token.load()
         private let savedCache = try? Data(contentsOf: Snapshot.file)
 

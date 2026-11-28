@@ -50,7 +50,7 @@ struct AttachmentList: View {
         }
     }
 
-    static func icon(_ name: String) -> String {
+    nonisolated static func icon(_ name: String) -> String {
         switch (name as NSString).pathExtension.lowercased() {
         case "pdf": "doc.richtext"
         case "doc", "docx", "odt", "rtf", "txt": "doc.text"

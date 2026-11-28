@@ -91,7 +91,7 @@ struct LoginWebView: UIViewRepresentable {
     let onCode: (String) -> Void
 
     /// A failure worth showing: not a navigation we cancelled, nor the redirect we stop ourselves (WebKit 102).
-    static func isLoadFailure(_ error: Error) -> Bool {
+    nonisolated static func isLoadFailure(_ error: Error) -> Bool {
         let e = error as NSError
         if e.domain == NSURLErrorDomain && e.code == NSURLErrorCancelled { return false }
         return !(e.domain == "WebKitErrorDomain" && e.code == 102)
@@ -133,7 +133,7 @@ struct LoginWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
-                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+                     decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void) {
             guard let url = action.request.url, Kreta.isRedirect(url) else { return decisionHandler(.allow) }
             decisionHandler(.cancel)
             if !handled, let code = Kreta.code(fromRedirect: url, state: state) {

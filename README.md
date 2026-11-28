@@ -99,5 +99,7 @@ What it needs: the Mac awake and logged in, the iPhone on the same Wi-Fi (or on 
 | `Firka/Renames.swift` | Own names for subjects and teachers |
 | `Firka/SurpriseGrades.swift` | Surprise grades section on the home and grades screens |
 | `Firka/LiveActivity.swift` | Starts/updates/ends the Live Activity (views in `FirkaWidget/LessonLiveActivity.swift`) |
+| `Firka/ServerPush.swift` | Notifications from the own server (`server/push`): settings sync, status, test button |
+| `Firka/*View.swift`, `Rows.swift`, `DetailViews.swift` | The screens, one file each (logic in `ScreenLogic.swift`); rows and detail pages used on several |
 | `FirkaWidget/FirkaWidget.swift` | The widget |
 | `Shared/` | Code used by both the app and the widget (lesson data for the widget, colors, dates) |
