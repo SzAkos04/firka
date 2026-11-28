@@ -9,7 +9,8 @@ import Testing
 /// URLSession.shared picks up registered protocol classes, so the app's code runs unchanged.
 final class Stub: URLProtocol {
     /// `until`: hold the answer back (off the stub's thread, so other requests go on) until it says true, at most 3 s.
-    struct Reply { var status = 200; var body = "[]"; var until: (@Sendable () -> Bool)? = nil }
+    /// `location`: with a 3xx status, a redirect there (URLSession follows it).
+    struct Reply { var status = 200; var body = "[]"; var until: (@Sendable () -> Bool)? = nil; var location: String? = nil }
 
     nonisolated(unsafe) static var route: (URLRequest) -> Reply = { _ in Reply(status: 404, body: "") }
     nonisolated(unsafe) private static var log: [URLRequest] = []
@@ -30,7 +31,10 @@ final class Stub: URLProtocol {
         route = { _ in Reply(status: 404, body: "") }
     }
 
-    override class func canInit(with r: URLRequest) -> Bool { r.url?.host?.hasSuffix("e-kreta.hu") == true || r.url?.host == "push.test" }
+    override class func canInit(with r: URLRequest) -> Bool {
+        let host = r.url?.host ?? ""
+        return host.hasSuffix("e-kreta.hu") || host == "push.test" || host.hasSuffix(".neptun.test")
+    }
     override class func canonicalRequest(for r: URLRequest) -> URLRequest { r }
     override func stopLoading() {}
 
@@ -38,6 +42,11 @@ final class Stub: URLProtocol {
         var r = request
         if r.httpBody == nil, let stream = r.httpBodyStream { r.httpBody = Data(reading: stream) }
         let reply = Stub.lock.withLock { Stub.log.append(r); return Stub.route }(r)
+        if let location = reply.location, let to = URL(string: location, relativeTo: r.url) {
+            let resp = HTTPURLResponse(url: r.url!, statusCode: reply.status, httpVersion: nil, headerFields: ["Location": to.absoluteString])!
+            client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: to.absoluteURL), redirectResponse: resp)
+            return
+        }
         nonisolated(unsafe) let answer = { [self] in
             client?.urlProtocol(self, didReceive: HTTPURLResponse(url: r.url!, statusCode: reply.status, httpVersion: nil, headerFields: nil)!,
                                 cacheStoragePolicy: .notAllowed)

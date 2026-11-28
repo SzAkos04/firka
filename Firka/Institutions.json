@@ -1,0 +1,172 @@
+[
+ {
+  "name": "A Tan Kapuja Buddhista Főiskola",
+  "omCode": "FI62370",
+  "web": "https://host.sdakft.hu/tkbfhw/"
+ },
+ {
+  "name": "Állatorvostudományi Egyetem",
+  "omCode": "FI21261",
+  "web": "https://neptun.univet.hu/ate_hw/"
+ },
+ {
+  "name": "Bhaktivedanta Hittudományi Főiskola",
+  "omCode": "FI21010",
+  "web": "https://host.sdakft.hu/bhfhw/"
+ },
+ {
+  "name": "Brenner János Hittudományi Főiskola",
+  "omCode": "FI83335",
+  "web": "https://host.sdakft.hu/bjhfhw/"
+ },
+ {
+  "name": "Budapesti Corvinus Egyetem",
+  "omCode": "FI43814",
+  "web": "https://neptun3r.web.uni-corvinus.hu/Hallgatoi/"
+ },
+ {
+  "name": "Budapesti Gazdasági Egyetem",
+  "omCode": "FI82314",
+  "web": "https://neptun16.uni-bge.hu/hallgato/"
+ },
+ {
+  "name": "Budapesti Metropolitan Egyetem",
+  "omCode": "FI33842",
+  "web": "https://neptunweb2.metropolitan.hu/hallgato/"
+ },
+ {
+  "name": "Budapesti Műszaki és Gazdaságtudományi Egyetem",
+  "omCode": "FI23344",
+  "web": "https://neptun.bme.hu/hallgatoi/"
+ },
+ {
+  "name": "Debreceni Egyetem",
+  "omCode": "FI17198",
+  "web": "https://www-h-ng.neptun.unideb.hu/hallgato_ng/"
+ },
+ {
+  "name": "Debreceni Református Hittudományi Egyetem",
+  "omCode": "FI12746",
+  "web": "https://host.sdakft.hu/drhehw/"
+ },
+ {
+  "name": "Edutus Főiskola",
+  "omCode": "FI83139",
+  "web": "https://neptun1.edutus.hu/hallgato/"
+ },
+ {
+  "name": "Eötvös Loránd Tudományegyetem",
+  "omCode": "FI80798",
+  "web": "https://hallgato2.neptun.elte.hu/"
+ },
+ {
+  "name": "Eszterházy Károly Katolikus Egyetem",
+  "omCode": "FI10955",
+  "web": "https://neptunh.uni-eszterhazy.hu/Hallgato/"
+ },
+ {
+  "name": "Gábor Dénes Főiskola",
+  "omCode": "FI54333",
+  "web": "https://neptun.gdf.hu/hallgato/"
+ },
+ {
+  "name": "Gál Ferenc Egyetem",
+  "omCode": "FI18580",
+  "web": "https://host.sdakft.hu/gfehw/"
+ },
+ {
+  "name": "Károli Gáspár Református Egyetem",
+  "omCode": "FI44189",
+  "web": "https://neptun.kre.hu/hallgato/"
+ },
+ {
+  "name": "Liszt Ferenc Zeneművészeti Egyetem",
+  "omCode": "FI26840",
+  "web": "https://neptun.lfze.hu/hallgato/"
+ },
+ {
+  "name": "Magyar Képzőművészeti Egyetem",
+  "omCode": "FI27524",
+  "web": "https://mke-neptun.mke.hu/hallgato/"
+ },
+ {
+  "name": "Magyar Táncművészeti Egyetem",
+  "omCode": "FI41559",
+  "web": "https://host.sdakft.hu/mtfhw/"
+ },
+ {
+  "name": "Milton Friedman Egyetem",
+  "omCode": "FI83995",
+  "web": "https://neptun.uni-milton.hu/hallgato/"
+ },
+ {
+  "name": "Moholy-Nagy Művészeti Egyetem",
+  "omCode": "FI73435",
+  "web": "https://host.sdakft.hu/momehw/"
+ },
+ {
+  "name": "Óbudai Egyetem",
+  "omCode": "FI12904",
+  "web": "https://neptun.uni-obuda.hu/ujhallgato/"
+ },
+ {
+  "name": "Országos Rabbiképző - Zsidó Egyetem",
+  "omCode": "FI17624",
+  "web": "https://neptun.or-zse.hu/hallgato/"
+ },
+ {
+  "name": "Pannon Egyetem",
+  "omCode": "FI80554",
+  "web": "https://neptun-ws03.uni-pannon.hu/hallgato/"
+ },
+ {
+  "name": "Pécsi Tudományegyetem",
+  "omCode": "FI58544",
+  "web": "https://neptun-web3.tr.pte.hu/hallgato/"
+ },
+ {
+  "name": "Sapientia Szerzetesi Hittudományi Főiskola",
+  "omCode": "FI47939",
+  "web": "https://neptun3r.sapientia.hu/hallgato/"
+ },
+ {
+  "name": "Szegedi Tudományegyetem",
+  "omCode": "FI62198",
+  "web": "https://neptun.szte.hu/hallgato/"
+ },
+ {
+  "name": "Szent Atanáz Görög Katolikus Hittudományi Főiskola",
+  "omCode": "FI35925",
+  "web": "https://neptun.szentatanaz.hu/hallgato/"
+ },
+ {
+  "name": "Szent Pál Akadémia",
+  "omCode": "FI67069",
+  "web": "https://neptun.szpa.hu/hallgato/"
+ },
+ {
+  "name": "Színház- és Filmművészeti Egyetem",
+  "omCode": "FI54876",
+  "web": "https://host.sdakft.hu/szfehw/"
+ },
+ {
+  "name": "Testnevelési Egyetem",
+  "omCode": "FI89399",
+  "web": "https://neptun.tf.hu/hallgato/"
+ },
+ {
+  "name": "Tokaj-Hegyalja Egyetem",
+  "omCode": "FI30164",
+  "web": "https://neptun.unithe.hu/hallgato/"
+ },
+ {
+  "name": "Tomori Pál Főiskola",
+  "omCode": "FI44196",
+  "web": "https://host.sdakft.hu/tpfhw/"
+ },
+ {
+  "name": "Wesley János Lelkészképző Főiskola",
+  "omCode": "FI62930",
+  "web": "https://host.sdakft.hu/wjlfhw/"
+ }
+]
