@@ -214,10 +214,15 @@ export async function pollOnce(dir, { k = KRETA, ntfy, now = new Date() }) {
 /**
  * The phone's side, over the tailnet only (tailscale serve → 127.0.0.1): PUT /api/prefs, GET /api/status.
  * Tailscale names the sender in Tailscale-User-Login; only the owner gets in, so no password to keep.
+ * GET /health is open (Uptime Kuma asks it over the Docker network) and says only ok or what is wrong.
  */
 export function api(dir, owner, status) {
   return (req, res) => {
     const reply = (code, body) => { res.writeHead(code, body ? { 'content-type': 'application/json' } : {}); res.end(body && JSON.stringify(body)) }
+    if (req.method === 'GET' && req.url === '/health') {
+      const why = healthy(status, existsSync(join(dir, 'token.json')), new Date())
+      res.writeHead(why ? 503 : 200, { 'content-type': 'text/plain' }); return res.end(why ?? 'ok')
+    }
     if (!owner || req.headers['tailscale-user-login'] !== owner) return reply(403)
     if (req.method === 'GET' && req.url === '/api/status') return reply(200, { ...status, loggedIn: existsSync(join(dir, 'token.json')) })
     if (req.method !== 'PUT' || req.url !== '/api/prefs') return reply(404)
@@ -233,11 +238,18 @@ export function api(dir, owner, status) {
   }
 }
 
+/** null when all is well; otherwise why. An hour without a good poll covers a night interval and a back-off. */
+export function healthy(status, loggedIn, now) {
+  if (!loggedIn) return 'not signed in to KRÉTA (node login.mjs)'
+  if (now - new Date(status.lastOk) > 60 * 60e3) return `no good poll since ${status.lastOk}`
+  return null
+}
+
 export const interval = (now) => { const h = now.getHours(); return (h >= 6 && h < 22 ? 5 : 30) * 60e3 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const dir = process.env.DATA_DIR ?? '/data'
-  const status = {}
+  const status = { lastOk: new Date().toISOString() }   // a fresh start counts as good until the first hour runs out
   createServer(api(dir, process.env.OWNER_LOGIN, status)).listen(Number(process.env.PORT ?? 8087))
   for (;;) {
     let wait
@@ -245,6 +257,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const ntfy = { url: process.env.NTFY_URL, topic: process.env.NTFY_TOPIC, token: readFileSync(join(dir, 'publish-token'), 'utf8').trim() }
       const r = await pollOnce(dir, { ntfy })
       Object.assign(status, { lastPoll: new Date().toISOString(), result: r })
+      if (r !== 'no-login' && r !== 'reauth') status.lastOk = status.lastPoll
       if (r !== 'no-login') console.log(status.lastPoll, r)
       wait = r === 'no-login' ? 60e3 : interval(new Date())
     } catch (e) {

@@ -6,6 +6,14 @@
 #   NTFY_BASE_URL = https://<host>.ts.net:8445   the address the ntfy app subscribes with
 #   NTFY_TOPIC    = firka-<random>              the topic it subscribes to
 #   OWNER_LOGIN   = the Tailscale login allowed to send settings
+# Dozzle lists both under the group "firka". Uptime Kuma joins firka-push_default and checks
+# http://ntfy/v1/health and http://push:8087/health (~/uptime-kuma/docker-compose.yml).
+name: firka-push
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
 services:
   ntfy:
     image: binwiederhier/ntfy:v2.11.0
@@ -22,6 +30,8 @@ services:
       test: ["CMD-SHELL", "wget -q -O - http://localhost/v1/health | grep -q true"]
       interval: 60s
       timeout: 5s
+    logging: *logging
+    labels: { dev.dozzle.group: firka }
 
   push:
     build: ./push
@@ -37,3 +47,5 @@ services:
       OWNER_LOGIN: ${OWNER_LOGIN}
     # token.json (KRÉTA session), state.json (ids seen), publish-token (ntfy), prefs.json (optional)
     volumes: ["./data:/data"]
+    logging: *logging
+    labels: { dev.dozzle.group: firka }

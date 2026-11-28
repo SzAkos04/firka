@@ -6,7 +6,7 @@ import { createServer } from 'node:http'
 import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { changes, pollOnce, interval, api, link } from './poll.mjs'
+import { changes, pollOnce, interval, api, link, healthy } from './poll.mjs'
 
 const now = new Date('2026-11-26T10:00:00+01:00')   // a Thursday; the week starts on Monday the 23rd
 const subj = (nev) => ({ Uid: nev, Nev: nev })
@@ -197,4 +197,22 @@ test('the phone sends its settings; only the owner, as Tailscale names them', as
   assert.deepEqual(await st.json(), { ...status, loggedIn: false })
   assert.equal((await fetch(url('/api/status'))).status, 403)
   assert.equal((await fetch(url('/nope'), { headers: who('owner@example.com') })).status, 404)
+})
+
+test('Uptime Kuma asks /health, no login needed: down when signed out or no good poll for an hour', async (t) => {
+  const ok = { lastOk: new Date(now - 40 * 60e3).toISOString() }   // a 30-minute night interval plus a back-off still passes
+  assert.equal(healthy(ok, true, now), null)
+  assert.match(healthy(ok, false, now), /not signed in/)
+  assert.match(healthy({ lastOk: new Date(now - 70 * 60e3).toISOString() }, true, now), /no good poll since/)
+
+  const d = mkdtempSync(join(tmpdir(), 'firka-push-'))
+  const status = { lastOk: new Date().toISOString() }
+  const srv = createServer(api(d, 'owner@example.com', status))
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r)); t.after(() => srv.close())
+  const health = () => fetch(`http://127.0.0.1:${srv.address().port}/health`)
+  assert.equal((await health()).status, 503)   // no token.json
+  writeFileSync(join(d, 'token.json'), '{}')
+  const r = await health()
+  assert.equal(r.status, 200)
+  assert.equal(await r.text(), 'ok')
 })
