@@ -20,6 +20,8 @@ struct LessonActivityAttributes: ActivityAttributes {
     }
 
     var day: Date
+    /// When it was started (iOS ends it 8 hours later); nil for one started by an older build.
+    var started: Date? = nil
 }
 
 extension LessonActivityAttributes.ContentState {

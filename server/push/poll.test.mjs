@@ -1,5 +1,4 @@
 // Run: node --test server/push   (the server's whole test suite; no dependencies)
-process.env.TZ = 'Europe/Budapest'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
@@ -216,6 +215,17 @@ test('a session KRÉTA refuses stops polling and says so once', async (t) => {
   assert.equal(f.sent.length, 1)
 })
 
+test('the logout alert survives ntfy being down: the session stays until the alert is out', async (t) => {
+  const f = await fakes({ idp: 400 }); t.after(f.close)
+  const d = dir()
+  const down = { ...f.ntfy, url: 'http://127.0.0.1:9' }   // nothing listens there
+  await assert.rejects(pollOnce(d, { k: f.k, ntfy: down, now }))
+  assert.equal(existsSync(join(d, 'token.json')), true, 'not given up while nobody was told')
+  assert.equal(await pollOnce(d, { k: f.k, ntfy: f.ntfy, now }), 'reauth')
+  assert.equal(f.sent.length, 1)
+  assert.equal(existsSync(join(d, 'token.json')), false)
+})
+
 // --- the phone's settings, over the tailnet ---
 
 test('the phone sends its settings; only the owner, as Tailscale names them', async (t) => {
@@ -232,6 +242,11 @@ test('the phone sends its settings; only the owner, as Tailscale names them', as
   assert.equal((await put(JSON.stringify(prefs), 'someone@else.com')).status, 403)
   assert.equal((await put('{nope')).status, 400)
   assert.equal((await put('[]')).status, 400)
+  for (const bad of [{ kinds: { notifyGrades: 'no' } }, { surprise: 1 }, { subjects: { Irodalom: 5 } }, { teachers: [] },
+    { hidden: [{ subject: 'x' }] }, { hidden: {} }, { nope: true }]) {
+    assert.equal((await put(JSON.stringify(bad))).status, 400, JSON.stringify(bad))
+  }
+  assert.equal((await put('{"subjects":{"a":"' + 'x'.repeat(1.1e6) + '"}}')).status, 413)
   assert.equal(existsSync(join(d, 'prefs.json')), false)
   assert.equal((await put(JSON.stringify(prefs))).status, 204)
   assert.deepEqual(JSON.parse(readFileSync(join(d, 'prefs.json'))), prefs)

@@ -141,3 +141,14 @@ struct RevealNoteTests {
         #expect(half.revealNote(previous: [], rounding: r) == nil)
     }
 }
+
+@Suite("Surprise grades: the feel of a reveal")
+struct RevealFeelTests {
+    @Test("one buzz however many are revealed at once: a success one if any of them is 4 or 5")
+    func oneBuzz() throws {
+        let g = try grades(gradeJSON("a", 2, 100), gradeJSON("b", 5, 100), gradeJSON("c", 3, 100))
+        #expect(RevealFeel.of([g[0], g[2]]) == .light)
+        #expect(RevealFeel.of(g) == .success)
+        #expect(RevealFeel.of([]) == nil)
+    }
+}

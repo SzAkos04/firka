@@ -45,7 +45,7 @@ extension Global {
     /// Syncing, logging in and out, and the app state around it, against the fake KRÉTA.
     @MainActor @Suite("Sync and app state", .serialized)
     final class Sync {
-        private let keys = [Pref.demo, Pref.seenGrades, Pref.surpriseGrades, Pref.liveActivity]
+        private let keys = [Pref.demo, Pref.seenGrades, Pref.surpriseGrades, Pref.liveActivity, Pref.lastBackgroundRun]
         nonisolated(unsafe) private let savedPrefs: [String: Any]  // read back in deinit
         private let savedToken = Token.load()
         private let savedCache = try? Data(contentsOf: Snapshot.file)
@@ -133,6 +133,23 @@ extension Global {
             #expect(s.error == nil)
             #expect(s.data.absences.map(\.uid) == ["77"] && s.data.classAverages == ["1,MAT": 4.1])
             #expect(s.data.grades.count == 2)
+        }
+
+        @Test("the background refresh: downloads, saves for the app and the widget, and notes when it ran")
+        func backgroundRun() async throws {
+            var old = Snapshot()
+            old.studentName = "Teszt Elek"
+            old.updated = Date().addingTimeInterval(-3600)
+            old.inboxBodies = ["9": "megnyitva közben"]
+            _ = store(cache: old)
+            #expect(await Background.run())
+            let saved = try #require(Snapshot.load())
+            #expect(saved.grades.count == 2 && saved.updated! > old.updated!)
+            #expect(saved.inboxBodies?["9"] == "megnyitva közben")
+            #expect(UserDefaults.standard.object(forKey: Pref.lastBackgroundRun) != nil)
+
+            Token.delete()
+            #expect(await Background.run() == false, "logged out: nothing to do")
         }
 
         @Test("an inbox that never loaded stays unknown when it fails, so its first good list is a baseline, not 50 alerts")

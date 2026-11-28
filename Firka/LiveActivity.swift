@@ -31,14 +31,23 @@ enum LessonLive {
         #endif
         let content = ActivityContent(state: state, staleDate: staleDate)
         if let a = running.first(where: { Calendar.hu.isDate($0.attributes.day, inSameDayAs: now) }) {
-            if !a.content.state.sameContent(as: state) { await a.update(content) }
-        } else if canStart, ActivityAuthorizationInfo().areActivitiesEnabled, shouldStart(lessons, now: now) {
-            do {
-                let a = try Activity.request(attributes: LessonActivityAttributes(day: now.startOfDay), content: content)
-                log.info("live activity started: \(a.id, privacy: .public)")
-            } catch {
-                log.error("live activity start failed: \(String(describing: error), privacy: .public)")
+            if canStart, needsRestart(started: a.attributes.started, lastEnd: state.held.last?.end ?? now, now: now) {
+                await a.end(nil, dismissalPolicy: .immediate)
+                start(content, now: now)
+            } else if !a.content.state.sameContent(as: state) {
+                await a.update(content)
             }
+        } else if canStart, ActivityAuthorizationInfo().areActivitiesEnabled, shouldStart(lessons, now: now) {
+            start(content, now: now)
+        }
+    }
+
+    private static func start(_ content: ActivityContent<LessonActivityAttributes.ContentState>, now: Date) {
+        do {
+            let a = try Activity.request(attributes: LessonActivityAttributes(day: now.startOfDay, started: now), content: content)
+            log.info("live activity started: \(a.id, privacy: .public)")
+        } catch {
+            log.error("live activity start failed: \(String(describing: error), privacy: .public)")
         }
     }
 
@@ -52,6 +61,14 @@ enum LessonLive {
     static func shouldStart(_ today: [WidgetLesson], now: Date) -> Bool {
         guard let first = today.first(where: { !$0.cancelled }) else { return false }
         return first.start.timeIntervalSince(now) < 2 * 3600
+    }
+
+    /// iOS ends an activity 8 hours after it started: one started early in the morning would go before the last
+    /// lesson. Restart it (only the app in front can) when that keeps it longer by at least half an hour.
+    static func needsRestart(started: Date?, lastEnd: Date, now: Date) -> Bool {
+        guard let started else { return false }
+        let cutoff = started.addingTimeInterval(8 * 3600)
+        return cutoff < lastEnd && now.timeIntervalSince(started) >= 30 * 60
     }
 
     static func endAll() async {

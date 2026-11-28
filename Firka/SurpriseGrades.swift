@@ -31,20 +31,33 @@ struct NewGradesSection: View {
 
     private func reveal(_ g: Ertekeles) {
         withAnimation(.snappy) { store.reveal(g) }
-        if (g.level ?? 0) >= 4 {
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        } else {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        }
+        RevealFeel.of([g])?.play()
     }
 
-    /// Oldest first, slightly staggered, so each average change builds on the previous one.
+    /// Oldest first, slightly staggered, so each average change builds on the previous one; one buzz at the end.
     private func revealAll() {
+        let all = store.hiddenGrades
         Task {
-            for g in store.hiddenGrades {
-                reveal(g)
+            for g in all {
+                withAnimation(.snappy) { store.reveal(g) }  // skips one a sync took away meanwhile
                 try? await Task.sleep(for: .milliseconds(180))
             }
+            RevealFeel.of(all)?.play()
+        }
+    }
+}
+
+/// The haptic for revealing grades: one, however many at once.
+enum RevealFeel: Equatable {
+    case success, light
+    static func of(_ grades: [Ertekeles]) -> RevealFeel? {
+        grades.isEmpty ? nil : grades.contains { ($0.level ?? 0) >= 4 } ? .success : .light
+    }
+
+    func play() {
+        switch self {
+        case .success: UINotificationFeedbackGenerator().notificationOccurred(.success)
+        case .light: UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
     }
 }

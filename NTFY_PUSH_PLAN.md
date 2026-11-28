@@ -80,7 +80,7 @@ phone and the server shared one login, whichever refreshed second would be signe
 ### 4. Firka changes
 
 - Settings: a new "Értesítések a szerverről" section: a toggle, the server status (last
-  poll, last error from `GET /api/status`), and a test button that sends one ntfy message.
+  poll, last error from `GET /api/status`), and a test button that sends one ntfy message (`POST /api/test`, done).
 - When it is on, `Notifier.post` does not send local notifications, or every change would arrive twice. The
   background refresh still runs for the widget and the Live Activity.
 - `firka://` URL scheme → `onOpenURL` → tab switch.

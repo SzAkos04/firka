@@ -57,7 +57,7 @@ struct Snapshot: Codable {
         let items = widgetLessons
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601
-        try? e.encode(items).write(to: Shared.widgetFile, options: .atomic)
+        try? e.encode(items).write(to: Shared.widgetFile, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -222,6 +222,7 @@ final class AppStore {
         //   FIRKA_HIDE_NEWEST=N    re-hide the N newest grades (tests surprise grades)
         //   FIRKA_DEMO=1           start over in demo mode (UI tests)
         //   FIRKA_DEMO=noClassAverages  the same without class averages (a school that hides them)
+        //   FIRKA_DEMO=reportCard       the same with half-year grades (the report card)
         let env = ProcessInfo.processInfo.environment
         if env["FIRKA_FORCE_REFRESH"] != nil { token?.expiry = .distantPast }
         if env["FIRKA_DEMO"] != nil {
@@ -242,6 +243,18 @@ final class AppStore {
         if env["FIRKA_PROBE"] != nil, let client { Task { await DebugProbe.run(client) } }
         if env["FIRKA_DEMO"] != nil { startDemo() }
         if env["FIRKA_DEMO"] == "noClassAverages" { data.classAverages = nil; data.save() }
+        if env["FIRKA_DEMO"] == "reportCard" {
+            let half = data.grades.prefix(3).map { g in
+                var h = g
+                h.uid += "-half"
+                h.tipus = NUD(uid: nil, nev: "felevi_jegy_ertekeles", leiras: "Félévi jegy")
+                h.sulySzazalekErteke = nil
+                return h
+            }
+            data.grades += half
+            seenGrades?.formUnion(half.map(\.uid))
+            data.save()
+        }
         if let n = env["FIRKA_HIDE_NEWEST"].flatMap(Int.init) {
             seenGrades = Set(data.grades.sorted { $0.keszitesDatuma < $1.keszitesDatuma }.dropLast(n).map(\.uid))
         }
@@ -506,7 +519,8 @@ enum Background {
         try? BGTaskScheduler.shared.submit(r)
     }
 
-    private static func run() async -> Bool {
+    /// One background refresh (internal for the tests): download, alert, save for the app and the widget.
+    static func run() async -> Bool {
         UserDefaults.standard.set(Date(), forKey: Pref.lastBackgroundRun)  // shown in Settings: does iOS run us at all?
         guard let token = Token.load(), let old = Snapshot.load() else { return false }
         do {

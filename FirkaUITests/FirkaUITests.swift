@@ -46,17 +46,36 @@ final class FirkaUITests: XCTestCase {
     /// is invisible on the other). iOS's own accessibility audit measures it on every main screen.
     func testContrastInLightAndDarkMode() throws {
         addTeardownBlock { XCUIDevice.shared.appearance = .light }  // the simulator keeps it: leave it as the other tests expect
+        relaunch(["FIRKA_DEMO": "reportCard"])  // with half-year grades, so the report card is there to check
+        let gradesPicker = { for _ in 0..<4 where !self.app.buttons["Legutóbbiak"].exists { self.app.swipeUp(velocity: .slow) } }
+        // name, how to get there, how to leave it as the next one expects
+        let screens: [(String, () -> Void, () -> Void)] = [
+            ("Kezdőlap", { self.tab("Kezdőlap") }, {}),
+            ("Órarend", { self.tab("Órarend") }, {}),
+            ("Órarend, hónap", { self.tab("Órarend"); self.app.buttons["Hónap"].tap() }, { self.app.buttons["Hét"].tap() }),
+            ("Jegyek", { self.tab("Jegyek") }, {}),
+            ("Bizonyítvány", { self.tab("Jegyek"); gradesPicker(); self.app.buttons["Bizonyítvány"].tap(); self.app.swipeDown(); self.app.swipeDown() },
+             { gradesPicker(); self.app.buttons["Tantárgyak"].firstMatch.tap(); self.app.swipeDown(); self.app.swipeDown() }),
+            ("Matematika", { self.openMath() }, { self.tab("Jegyek") }),
+            ("Hiányzások", { self.tab("Hiányzások") }, {}),
+            ("Hiányzások, tantárgyak", { self.tab("Hiányzások"); self.app.buttons["Tantárgyak"].tap() }, { self.app.buttons["Mind"].tap() }),
+            ("Egyebek", { self.tab("Egyebek") }, {}),
+            ("Beállítások", { self.tab("Egyebek"); self.app.buttons["Beállítások"].tap() }, { self.tab("Egyebek") }),
+        ]
         var found: [String] = []
         for mode in [XCUIDevice.Appearance.light, .dark] {
             XCUIDevice.shared.appearance = mode
-            for screen in ["Kezdőlap", "Órarend", "Jegyek", "Hiányzások", "Egyebek"] {
-                tab(screen)
+            for (screen, open, leave) in screens {
+                open()
+                defer { leave() }
+                Thread.sleep(forTimeInterval: 1)  // let a scroll and the large title settle
                 let tabBar = app.tabBars.firstMatch.frame.insetBy(dx: 0, dy: -60)  // with the fade above it
+                let barBottom = app.navigationBars.firstMatch.frame.maxY  // rows scrolled up under it or the status bar
                 try app.performAccessibilityAudit(for: .contrast) { issue in
                     // Not ours to fix: iOS's own secondary greys ("nearly passed"), disabled controls (meant to be faint),
                     // rows scrolled under the see-through tab bar or into the fade above it.
                     let ignore = issue.compactDescription.contains("nearly") || issue.element?.isEnabled == false
-                        || issue.element.map { $0.frame.intersects(tabBar) } == true
+                        || issue.element.map { $0.frame.intersects(tabBar) || $0.frame.minY < barBottom } == true
                     if !ignore {
                         found.append("\(mode == .dark ? "sötét" : "világos") · \(screen): \(issue.element?.label ?? "?") – \(issue.compactDescription)")
                     }
@@ -186,6 +205,53 @@ final class FirkaUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, before)
     }
 
+    /// A launch with something extra in the environment (FIRKA_DEMO variants, the push server's address).
+    private func relaunch(_ env: [String: String]) {
+        app.terminate()
+        app.launchEnvironment.merge(env) { $1 }
+        app.launch()
+    }
+
+    func testReportCard() {
+        relaunch(["FIRKA_DEMO": "reportCard"])
+        tab("Jegyek")
+        let card = app.buttons["Bizonyítvány"]
+        for _ in 0..<4 where !card.exists { app.swipeUp(velocity: .slow) }  // the picker sits under the chart
+        card.tap()
+        XCTAssertTrue(shows(app.staticTexts["Félév"]))
+        XCTAssertTrue(shows(app.staticTexts["Év vége"]))
+    }
+
+    func testLessonHomeworkAndTestDetails() {
+        tab("Órarend")
+        let row = app.buttons.matching(identifier: "lessonRow").firstMatch
+        if !shows(row) { app.buttons["nextWeek"].tap() }
+        row.tap()
+        XCTAssertTrue(shows(app.staticTexts["Időpont"]), "lesson detail")
+        tab("Egyebek")
+        app.buttons["Házi feladatok"].tap()
+        app.staticTexts["Matematika"].firstMatch.tap()
+        XCTAssertTrue(shows(app.staticTexts["Feladva"]), "homework detail")
+        tab("Egyebek")
+        app.buttons["Számonkérések"].tap()
+        app.staticTexts["Írásbeli témazáró · Az Árpád-kor"].tap()
+        XCTAssertTrue(shows(app.staticTexts["Mód"]), "test detail")
+    }
+
+    func testServerNotificationSettings() {
+        relaunch(["FIRKA_PUSH_SERVER": "https://push.invalid"])
+        tab("Egyebek")
+        app.buttons["Beállítások"].tap()
+        let toggle = app.switches["serverPushToggle"]
+        XCTAssertTrue(shows(toggle), "shown only when the app has a server's address")
+        if (toggle.value as? String) != "1" { toggle.switches.firstMatch.tap() }
+        XCTAssertTrue(shows(app.staticTexts["A szerver nem érhető el (Tailscale be van kapcsolva?)"]), "no server there")
+        app.buttons["serverPushTest"].tap()
+        XCTAssertTrue(shows(app.staticTexts["Nem sikerült elküldeni (Tailscale be van kapcsolva?)"]))
+        toggle.switches.firstMatch.tap()  // off again: the setting outlives the launch
+        XCTAssertFalse(app.buttons["serverPushTest"].exists)
+    }
+
     func testSurpriseGradesReveal() {
         let hidden = app.buttons.matching(NSPredicate(format: "label ENDSWITH 'jegy, rejtve'"))
         XCTAssertEqual(hidden.count, 3, "demo mode leaves the 3 newest grades as surprises")
@@ -220,6 +286,9 @@ final class FirkaUITests: XCTestCase {
 
     func testSubjectAndGradeDetail() {
         tab("Jegyek")
+        let picker = app.buttons["Legutóbbiak"]
+        for _ in 0..<4 where !picker.exists { app.swipeUp(velocity: .slow) }
+        XCTAssertTrue(picker.exists)
         XCTAssertFalse(app.buttons["Bizonyítvány"].exists, "no term grades in the demo: no report card tab")
         tab("Kezdőlap")
         openMath()

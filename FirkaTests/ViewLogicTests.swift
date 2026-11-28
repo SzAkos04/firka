@@ -76,6 +76,16 @@ struct WidgetScheduleTests {
         #expect(t.count == 7)  // Matek end + 3 lessons × 2
     }
 
+    @Test("Live Activity: one started early, which iOS would end (8 hours) before the last lesson, is restarted when that gains time")
+    func liveActivityRestart() {
+        let at = { (h: Double) in self.day.addingTimeInterval(h * 3600) }
+        let end = at(15)  // the last lesson ends at 15:00
+        #expect(LessonLive.needsRestart(started: at(6.25), lastEnd: end, now: at(9)), "started 6:15: iOS would end it at 14:15")
+        #expect(!LessonLive.needsRestart(started: at(7.5), lastEnd: end, now: at(9)), "lasts till 15:30: fine")
+        #expect(!LessonLive.needsRestart(started: at(6.25), lastEnd: end, now: at(6.5)), "a restart now gains under half an hour")
+        #expect(!LessonLive.needsRestart(started: nil, lastEnd: end, now: at(9)), "started by an older build: unknown")
+    }
+
     @Test("Live Activity starts only within 2 hours of the first held lesson")
     func liveActivityStart() {
         #expect(!LessonLive.shouldStart(lessons, now: day.addingTimeInterval(5 * 3600)))

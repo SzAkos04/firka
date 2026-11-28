@@ -1,8 +1,12 @@
 // Firka's notifications from the server: polls KRÉTA, works out what is new (a port of Notifier.changes in
 // Firka/Store.swift), publishes it to ntfy. No dependencies. Why it exists: NTFY_PUSH_PLAN.md.
-import { readFileSync, writeFileSync, renameSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, renameSync, existsSync, realpathSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+// School days, lesson times and the day/night polling are Budapest's, whatever the host's zone (Node reads TZ on the fly)
+process.env.TZ = 'Europe/Budapest'
 
 export const KRETA = {
   idp: 'https://idp.e-kreta.hu',
@@ -112,9 +116,9 @@ export function changes(old, d, now, prefs = {}) {
   const out = []
   const add = (id, one, many, ls) => { if (ls.length) out.push({ id, title: ls.length === 1 ? one : many(ls.length), lines: ls.slice(0, 5) }) }
   const fresh = (kind, items, idOf = (x) => x.Uid) => {
-    const seen = old?.[kind]
-    if (!items || !seen || (seen.length === 0 && items.length > 3)) return []
-    return items.filter((x) => !seen.includes(idOf(x)))
+    const seen = old?.[kind] && new Set(old[kind])
+    if (!items || !seen || (seen.size === 0 && items.length > 3)) return []
+    return items.filter((x) => !seen.has(idOf(x)))
   }
   const display = (g) => {
     if (g.ErtekFajta?.Nev === 'Osztalyzat' && g.SzamErtek != null) return `${g.SzamErtek}`
@@ -227,8 +231,9 @@ export async function pollOnce(dir, { k = KRETA, ntfy, now = new Date() }) {
     return alerts.length ? `${alerts.length} sent` : 'ok'
   } catch (e) {
     if (!(e instanceof Reauth)) throw e
-    renameSync(tokenFile, join(dir, 'token.dead.json'))   // stops polling until login.mjs writes a new one
+    // tell first: if ntfy is down this throws, the session stays, and the next poll tries again
     await publish(ntfy, { title: 'A Firka szerver kijelentkezett', lines: ['Jelentkeztesd be újra: node login.mjs a szerveren.'] })
+    renameSync(tokenFile, join(dir, 'token.dead.json'))   // stops polling until login.mjs writes a new one
     return 'reauth'
   }
 }
@@ -253,16 +258,27 @@ export function api(dir, owner, status, send) {
       return
     }
     if (req.method !== 'PUT' || req.url !== '/api/prefs') return reply(404)
-    let body = ''
-    req.on('data', (c) => { body += c; if (body.length > 1e6) req.destroy() })
+    let body = '', tooBig = false
+    req.on('data', (c) => { if (!tooBig) { body += c; tooBig = body.length > 1e6 } })
     req.on('end', () => {
+      if (tooBig) return reply(413)
       let p
       try { p = JSON.parse(body) } catch { return reply(400) }
-      if (!p || typeof p !== 'object' || Array.isArray(p)) return reply(400)
+      if (!validPrefs(p)) return reply(400)
       writeJSON(join(dir, 'prefs.json'), p)
       reply(204)
     })
   }
+}
+
+/** The shape ServerPush.Prefs sends; anything else is refused rather than written to prefs.json. */
+function validPrefs(p) {
+  const obj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x)
+  const mapOf = (x, type) => obj(x) && Object.values(x).every((v) => typeof v === type)
+  if (!obj(p) || !Object.keys(p).every((k) => ['kinds', 'surprise', 'subjects', 'teachers', 'hidden'].includes(k))) return false
+  return (p.kinds === undefined || mapOf(p.kinds, 'boolean')) && (p.surprise === undefined || typeof p.surprise === 'boolean')
+    && (p.subjects === undefined || mapOf(p.subjects, 'string')) && (p.teachers === undefined || mapOf(p.teachers, 'string'))
+    && (p.hidden === undefined || (Array.isArray(p.hidden) && p.hidden.every((r) => obj(r) && typeof r.kind === 'string')))
 }
 
 /** null when all is well; otherwise why. An hour without a good poll covers a night interval and a back-off. */
@@ -274,7 +290,7 @@ export function healthy(status, loggedIn, now) {
 
 export const interval = (now) => { const h = now.getHours(); return (h >= 6 && h < 22 ? 5 : 30) * 60e3 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {   // run, not imported
   const dir = process.env.DATA_DIR ?? '/data'
   const status = { lastOk: new Date().toISOString() }   // a fresh start counts as good until the first hour runs out
   const ntfy = () => ({ url: process.env.NTFY_URL, topic: process.env.NTFY_TOPIC, token: readFileSync(join(dir, 'publish-token'), 'utf8').trim() })
