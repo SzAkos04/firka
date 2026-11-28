@@ -226,6 +226,31 @@ extension Global {
             #expect(Stub.requests.count == 1)
         }
 
+        @Test("a cache from an earlier week (the last sync failed) doesn't stand for this week and the next: they are downloaded")
+        func weeksFromOldCache() async throws {
+            let monday = Date().startOfWeek
+            var c = Snapshot()
+            c.lessons = [lesson("old", day: monday.adding(days: -7), from: 480)]
+            c.updated = monday.adding(days: -5)
+            var fake = FakeKreta()
+            fake.lessons = [lessonJSON("next", start: monday.adding(days: 7).addingTimeInterval(8 * 3600))]
+            let s = store(cache: c, fake)
+            #expect(await s.lessons(week: monday.adding(days: -7)).map(\.uid) == ["old"])
+            #expect(Stub.requests.isEmpty)
+            #expect(await s.lessons(week: monday.adding(days: 7)).map(\.uid) == ["next"])
+        }
+
+        @Test("hiding or renaming a lesson tells the server at once, when it sends the notifications")
+        func lessonsChangedSyncsServer() async throws {
+            setenv("FIRKA_PUSH_SERVER", "https://push.test:8446", 1)
+            UserDefaults.standard.set(true, forKey: Pref.serverPush)
+            defer { unsetenv("FIRKA_PUSH_SERVER"); UserDefaults.standard.removeObject(forKey: Pref.serverPush) }
+            let s = store()
+            s.lessonsChanged()
+            for _ in 0..<200 where !Stub.paths().contains("/api/prefs") { try await Task.sleep(for: .milliseconds(10)) }
+            #expect(Stub.requests.contains { $0.url?.path == "/api/prefs" && $0.httpMethod == "PUT" })
+        }
+
         @Test("a week that can't be loaded shows an error, which goes away with the next good one")
         func weekError() async {
             let monday = Date().startOfWeek

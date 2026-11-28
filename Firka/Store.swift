@@ -271,6 +271,7 @@ final class AppStore {
     func lessonsChanged() {
         data.save()
         Task { await LessonLive.sync(data.widgetLessons, canStart: false) }
+        Task { await ServerPush.sync() }  // the server applies the hidden lessons and names from its next poll
     }
 
     func logout() {
@@ -334,7 +335,9 @@ final class AppStore {
         if let w = weeks[week] { return w }
         let end = week.adding(days: 7)
         let cached = data.lessons.filter { $0.kezdetIdopont >= week && $0.kezdetIdopont < end }
-        guard let client, week < Date().startOfWeek || week > Date().startOfWeek.adding(days: 7) else { return cached }
+        // the snapshot holds its own sync's week and the next: those come from it, whatever today is
+        let synced = data.updated?.startOfWeek
+        guard let client, week != synced, week != synced?.adding(days: 7) else { return cached }
         do {
             let w = try await client.week(week)
             weeks[week] = w

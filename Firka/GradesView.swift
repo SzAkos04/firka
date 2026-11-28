@@ -79,22 +79,20 @@ struct GradesView: View {
             .onChange(of: grades.contains { $0.term != nil }, initial: true) { _, has in if !has && mode == 2 { mode = 0 } }
             .refreshable { await store.refresh() }
             .navigationDestination(for: Ertekeles.self) { GradeDetail(grade: $0) }
-            .navigationDestination(for: Tantargy.self) { t in
-                SubjectView(subject: t, grades: grades.filter { $0.tantargy.uid == t.uid },
-                            classAverage: store.data.classAverages?[t.uid])
-            }
+            .navigationDestination(for: Tantargy.self) { SubjectView(subject: $0) }
         }
     }
 }
 
 struct SubjectView: View {
     let subject: Tantargy
-    let grades: [Ertekeles]
-    let classAverage: Double?
     @Environment(AppStore.self) private var store
     @State private var whatIf: [Int] = []  // "mi lenne ha" grades, weight 100%
 
     var body: some View {
+        // from the store, so a refresh while the page is open shows up here too
+        let grades = store.visibleGrades.filter { $0.tantargy.uid == subject.uid }
+        let classAverage = store.data.classAverages?[subject.uid]
         let sorted = grades.sorted { $0.keszitesDatuma > $1.keszitesDatuma }
         List {
             Section {
@@ -102,7 +100,7 @@ struct SubjectView: View {
                     AverageBadge(value: grades.average, size: 64)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Átlag").font(.headline)
-                        if let t = grades.first?.ertekeloTanarNeve { Text(t.renamedTeacher).font(.subheadline).foregroundStyle(.secondary) }
+                        if let t = grades.teacher { Text(t.renamedTeacher).font(.subheadline).foregroundStyle(.secondary) }
                     }
                 }
                 if let a = grades.average {
@@ -148,7 +146,7 @@ struct AverageChart: View {
     var body: some View {
         let points = grades.runningAverage
         if points.count < 2 {
-            Text("A grafikonhoz legalább két jegy kell.").font(.caption).foregroundStyle(.secondary)
+            Text("A grafikonhoz legalább két különböző napon kapott jegy kell.").font(.caption).foregroundStyle(.secondary)
         } else {
             Chart {
                 ForEach(Array(points.enumerated()), id: \.offset) { _, p in

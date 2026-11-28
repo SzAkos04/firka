@@ -127,6 +127,23 @@ struct ScreenLogicTests {
         #expect(Kreta.isRedirect(URL(string: "https://mobil.e-kreta.hu/ellenorzo-student/prod/oauthredirect?error=x")!))
     }
 
+    @Test("the login page failing to load is an error to show; our own cancelled redirect isn't")
+    func loginPageFailure() {
+        #expect(LoginWebView.isLoadFailure(URLError(.notConnectedToInternet)))
+        #expect(LoginWebView.isLoadFailure(URLError(.secureConnectionFailed)))
+        #expect(!LoginWebView.isLoadFailure(URLError(.cancelled)))
+        #expect(!LoginWebView.isLoadFailure(NSError(domain: "WebKitErrorDomain", code: 102)), "the redirect we stop ourselves")
+    }
+
+    @Test("a lesson is on now only between its start and end, and not when it's cancelled")
+    func lessonOnNow() {
+        let day = budapest(2026, 11, 23)
+        let l = lesson("a", day: day, from: 8 * 60)
+        #expect(l.isOn(at: budapest(2026, 11, 23, 8, 10)))
+        #expect(!l.isOn(at: budapest(2026, 11, 23, 8, 45)) && !l.isOn(at: budapest(2026, 11, 23, 7, 59)))
+        #expect(!lesson("b", day: day, from: 8 * 60, cancelled: true).isOn(at: budapest(2026, 11, 23, 8, 10)))
+    }
+
     @Test("rename screen: every subject and teacher once, Hungarian order; search finds own names too")
     func renameNames() throws {
         var d = Snapshot()

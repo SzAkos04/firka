@@ -1,6 +1,11 @@
 import Foundation
 
 /// What the screens show, computed without SwiftUI so it's testable. The views only lay it out.
+extension Ora {
+    /// In progress at `now` (a cancelled one never is).
+    func isOn(at now: Date) -> Bool { kezdetIdopont <= now && vegIdopont > now && !isCancelled }
+}
+
 enum HomeLogic {
     /// Hungarian order: family name first, so the first given name is the 2nd word.
     static func greeting(name: String, hour: Int) -> String {
@@ -13,7 +18,7 @@ enum HomeLogic {
     /// The lesson in progress, the next one, and today's lessons if any are left, otherwise the next school day's.
     static func today(_ all: [Ora], now: Date, isHidden: (Ora) -> Bool) -> (current: Ora?, next: Ora?, day: Date, lessons: [Ora]) {
         let lessons = all.filter { !$0.isEvent && !isHidden($0) }.sorted { $0.kezdetIdopont < $1.kezdetIdopont }
-        let current = lessons.first { $0.kezdetIdopont <= now && $0.vegIdopont > now && !$0.isCancelled }
+        let current = lessons.first { $0.isOn(at: now) }
         let next = lessons.first { $0.kezdetIdopont > now && !$0.isCancelled }
         let day = (lessons.first { $0.vegIdopont > now }?.kezdetIdopont ?? now).startOfDay
         return (current, next, day, lessons.filter { $0.kezdetIdopont.startOfDay == day })

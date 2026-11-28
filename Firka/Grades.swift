@@ -52,16 +52,22 @@ extension Array where Element == Ertekeles {
         return avgs.isEmpty ? nil : avgs.reduce(0, +) / Double(avgs.count)
     }
 
+    /// Whoever gave the newest grade: the subject's teacher now.
+    var teacher: String? { self.max { $0.keszitesDatuma < $1.keszitesDatuma }?.ertekeloTanarNeve }
+
     /// Running weighted average after each grade, for charts.
     var runningAverage: [(date: Date, value: Double)] {
         var sum = 0.0, w = 0.0
-        return sorted { $0.keszitesDatuma < $1.keszitesDatuma }.compactMap { g in
-            guard g.countsInAverage else { return nil }
+        var out: [(date: Date, value: Double)] = []
+        for g in sorted(by: { $0.keszitesDatuma < $1.keszitesDatuma }) where g.countsInAverage {
             let weight = Double(g.sulySzazalekErteke!) / 100
             sum += Double(g.szamErtek!) * weight
             w += weight
-            return w > 0 ? (g.keszitesDatuma, sum / w) : nil  // 0% weighted grades alone have no average
+            guard w > 0 else { continue }  // 0% weighted grades alone have no average
+            if out.last?.date == g.keszitesDatuma { out.removeLast() }  // one point per moment: the average after all of them
+            out.append((g.keszitesDatuma, sum / w))
         }
+        return out
     }
 }
 

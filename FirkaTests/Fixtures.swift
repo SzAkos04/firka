@@ -13,8 +13,8 @@ func decode<T: Decodable>(_ json: String) throws -> T {
 /// A grade as KRÉTA sends it. `kind`: "evkozi_jegy_ertekeles", "felevi_jegy_ertekeles", "evvegi_jegy_ertekeles".
 func gradeJSON(_ uid: String, _ value: Int?, _ weight: Int?, valueType: String = "Osztalyzat",
                kind: String = "evkozi_jegy_ertekeles", date: String = "2025-10-01T08:00:00Z",
-               subject: String = subjectJSON, text: String = "Jeles(5)", short: String? = nil) -> String {
-    #"{"Uid":"\#(uid)","RogzitesDatuma":"\#(date)","KeszitesDatuma":"\#(date)","LattamozasDatuma":null,"Tantargy":\#(subject),"Tema":"Törtek","Tipus":{"Uid":"1,\#(kind)","Nev":"\#(kind)","Leiras":"x"},"Mod":{"Uid":"1,irasbeli","Nev":"irasbeli","Leiras":"Írásbeli röpdolgozat"},"ErtekFajta":{"Uid":"1,\#(valueType)","Nev":"\#(valueType)","Leiras":"x"},"ErtekeloTanarNeve":"Kovács Anna","Jelleg":"Ertekeles","SzamErtek":\#(value.map(String.init) ?? "0"),"SzovegesErtek":"\#(text)","SulySzazalekErteke":\#(weight.map(String.init) ?? "null"),"SzovegesErtekelesRovidNev":\#(short.map { "\"\($0)\"" } ?? "null"),"OsztalyCsoport":{"Uid":"123"},"SortIndex":0}"#
+               subject: String = subjectJSON, text: String = "Jeles(5)", short: String? = nil, teacher: String = "Kovács Anna") -> String {
+    #"{"Uid":"\#(uid)","RogzitesDatuma":"\#(date)","KeszitesDatuma":"\#(date)","LattamozasDatuma":null,"Tantargy":\#(subject),"Tema":"Törtek","Tipus":{"Uid":"1,\#(kind)","Nev":"\#(kind)","Leiras":"x"},"Mod":{"Uid":"1,irasbeli","Nev":"irasbeli","Leiras":"Írásbeli röpdolgozat"},"ErtekFajta":{"Uid":"1,\#(valueType)","Nev":"\#(valueType)","Leiras":"x"},"ErtekeloTanarNeve":"\#(teacher)","Jelleg":"Ertekeles","SzamErtek":\#(value.map(String.init) ?? "0"),"SzovegesErtek":"\#(text)","SulySzazalekErteke":\#(weight.map(String.init) ?? "null"),"SzovegesErtekelesRovidNev":\#(short.map { "\"\($0)\"" } ?? "null"),"OsztalyCsoport":{"Uid":"123"},"SortIndex":0}"#
 }
 
 func grades(_ items: String...) throws -> [Ertekeles] { try decode("[\(items.joined(separator: ","))]") }

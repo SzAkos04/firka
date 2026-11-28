@@ -6,7 +6,10 @@ import Foundation
 /// The server knows the sender from Tailscale (tailnet only), so there is no password here.
 enum ServerPush {
     static var base: URL? {
-        (Bundle.main.object(forInfoDictionaryKey: "FirkaPushServer") as? String).flatMap { $0.isEmpty ? nil : URL(string: $0) }
+        #if DEBUG
+        if let s = ProcessInfo.processInfo.environment["FIRKA_PUSH_SERVER"] { return URL(string: s) }  // tests
+        #endif
+        return (Bundle.main.object(forInfoDictionaryKey: "FirkaPushServer") as? String).flatMap { $0.isEmpty ? nil : URL(string: $0) }
     }
 
     /// The server sends the notifications: the phone's own ones stay off.

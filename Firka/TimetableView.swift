@@ -94,7 +94,9 @@ struct TimetableView: View {
                 Label(e.nev ?? e.tipus.leiras ?? "Esemény", systemImage: "flag.fill").foregroundStyle(.purple)
             }
             ForEach(showHidden ? real : real.filter { !hidden.contains($0) }) { l in
-                NavigationLink(value: l) { LessonRow(lesson: l, active: l.kezdetIdopont <= Date() && l.vegIdopont > Date()) }
+                NavigationLink(value: l) {
+                    TimelineView(.everyMinute) { ctx in LessonRow(lesson: l, active: l.isOn(at: ctx.date)) }
+                }
                     .accessibilityIdentifier("lessonRow")
                     .opacity(hidden.contains(l) ? 0.45 : 1)
                     .hideLessonActions(l)
@@ -115,12 +117,14 @@ struct TimetableView: View {
 
     /// Swipe to the next/previous school day, crossing weeks.
     private func step(_ dir: Int) {
-        (week, day) = TimetableNav.step(day: day, days: days, week: week, by: dir)
+        (week, day) = TimetableNav.step(day: day, week: week, lessonDays: lessonDays, by: dir)
     }
 
     private func load() async {
         loading = true
-        lessons = await store.lessons(week: week)
+        let w = await store.lessons(week: week)
+        guard !Task.isCancelled else { return }  // moved on to another week: its own load sets the list
+        lessons = w
         loading = false
     }
 }
@@ -213,6 +217,7 @@ struct MonthTimetable: View {
         }
         .refreshable { await store.refresh(); await load() }
         .task(id: month) { await load() }
+        .onChange(of: store.data.updated) { Task { await load() } }
         .onChange(of: selected) { showHidden = false }
     }
 
@@ -221,18 +226,17 @@ struct MonthTimetable: View {
         selected = month == Date().startOfMonth ? Date().startOfDay : month
     }
 
-    /// The month's weeks, through the same per-week cache the week view uses.
+    /// The month's weeks at once, through the same per-week cache the week view uses.
     private func load() async {
         loading = true
         defer { loading = false }
         let end = Calendar.hu.date(byAdding: .month, value: 1, to: month)!
-        var all: [Ora] = []
-        var week = month.startOfWeek
-        while week < end {
-            if Task.isCancelled { return }  // paged on to another month
-            all += await store.lessons(week: week)
-            week = week.adding(days: 7)
+        let weeks = stride(from: 0, to: 6, by: 1).map { month.startOfWeek.adding(days: 7 * $0) }.filter { $0 < end }
+        let all = await withTaskGroup(of: [Ora].self) { g in
+            for w in weeks { g.addTask { await store.lessons(week: w) } }
+            return await g.reduce(into: []) { $0 += $1 }
         }
+        guard !Task.isCancelled else { return }  // paged on to another month
         lessons = all.filter { $0.kezdetIdopont >= month && $0.kezdetIdopont < end }
     }
 }

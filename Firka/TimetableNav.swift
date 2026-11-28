@@ -35,13 +35,14 @@ enum TimetableNav {
         day == openingDay(today: today, lessonDays: lessonDays)
     }
 
-    /// One school day forward (+1) or back (-1), crossing weeks. From a day outside the strip
-    /// forward is the strip's first day, back is the previous week.
-    static func step(day: Date, days: [Date], week: Date, by dir: Int) -> (week: Date, day: Date) {
+    /// One school day forward (+1) or back (-1), crossing weeks (back lands on that week's last school day,
+    /// a working Saturday too). From a day outside the strip forward is the strip's first day, back is the previous week.
+    static func step(day: Date, week: Date, lessonDays: Set<Date>, by dir: Int) -> (week: Date, day: Date) {
+        let days = days(week: week, lessonDays: lessonDays)
         let j = (days.firstIndex(of: day) ?? (dir > 0 ? -1 : 0)) + dir
         if days.indices.contains(j) { return (week, days[j]) }
         let w = week.adding(days: 7 * dir)
-        return (w, dir > 0 ? w : w.adding(days: 4))
+        return (w, dir > 0 ? w : Self.days(week: w, lessonDays: lessonDays).last!)
     }
 
     /// The days of the month starting at `month`.

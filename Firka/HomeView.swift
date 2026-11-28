@@ -7,18 +7,14 @@ struct HomeView: View {
         NavigationStack {
             TimelineView(.periodic(from: .now, by: 30)) { ctx in
                 list(now: ctx.date)
+                    .navigationTitle(HomeLogic.greeting(name: store.data.studentName, hour: Calendar.hu.component(.hour, from: ctx.date)))
             }
-            .navigationTitle(greeting)
             .refreshable { await store.refresh() }
             .navigationDestination(for: Ora.self) { LessonDetail(lesson: $0) }
             .navigationDestination(for: Ertekeles.self) { GradeDetail(grade: $0) }
             .navigationDestination(for: HaziFeladat.self) { HomeworkDetail(hw: $0) }
             .navigationDestination(for: Szamonkeres.self) { TestDetail(test: $0) }
         }
-    }
-
-    private var greeting: String {
-        HomeLogic.greeting(name: store.data.studentName, hour: Calendar.hu.component(.hour, from: Date()))
     }
 
     @ViewBuilder

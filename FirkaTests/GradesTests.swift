@@ -8,7 +8,7 @@ struct GradesTests {
 
     @Test("weighted: 5@200% + 3@100% = 4,33; weightless and text grades don't count")
     func weighted() throws {
-        let g = try grades(gradeJSON("a", 5, 200), gradeJSON("b", 3, 100), gradeJSON("c", 1, nil), gradeJSON("d", nil, 100, valueType: "Szoveges"))
+        let g = try grades(gradeJSON("a", 5, 200), gradeJSON("b", 3, 100, date: "2025-10-02T08:00:00Z"), gradeJSON("c", 1, nil), gradeJSON("d", nil, 100, valueType: "Szoveges"))
         #expect(abs(g.average! - 13.0 / 3) < 0.0001)
         #expect(g.runningAverage.map(\.value) == [5, 13.0 / 3])
         #expect(g.overallAverage == g.average)
@@ -29,6 +29,22 @@ struct GradesTests {
         let none: [Ertekeles] = []
         #expect(none.average == nil && none.overallAverage == nil && none.runningAverage.isEmpty)
         #expect(none.average(adding: [5, 5]) == 5)
+    }
+
+    @Test("grades made the same moment are one point of the chart (the average after both), not a vertical jump")
+    func sameMoment() throws {
+        let g = try grades(gradeJSON("a", 5, 100, date: "2025-10-01T08:00:00Z"), gradeJSON("b", 3, 100, date: "2025-10-01T08:00:00Z"),
+                           gradeJSON("c", 4, 100, date: "2025-10-08T08:00:00Z"))
+        #expect(g.runningAverage.map(\.value) == [4, 4])
+        #expect(Set(g.runningAverage.map(\.date)).count == 2)
+    }
+
+    @Test("a subject's teacher: whoever gave the newest grade")
+    func newestTeacher() throws {
+        let g = try grades(gradeJSON("old", 5, 100, date: "2025-09-10T08:00:00Z", teacher: "Régi Tanár"),
+                           gradeJSON("new", 4, 100, date: "2025-11-10T08:00:00Z", teacher: "Új Tanár"))
+        #expect(g.teacher == "Új Tanár")
+        #expect([Ertekeles]().teacher == nil)
     }
 
     @Test("what-if grades count at 100%")

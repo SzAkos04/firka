@@ -47,6 +47,10 @@ struct LoginScreen: View {
     }
 }
 
+struct LoginPageError: LocalizedError {
+    var errorDescription: String? { "Nem sikerült betölteni a KRÉTA bejelentkezési oldalát. Van internet?" }
+}
+
 /// KRÉTA's own login page in a web view; we catch the OAuth redirect and swap the code for tokens.
 struct LoginSheet: View {
     let done: (Result<Void, Error>) -> Void
@@ -57,7 +61,8 @@ struct LoginSheet: View {
 
     var body: some View {
         NavigationStack {
-            LoginWebView(url: pkce.loginURL, state: pkce.state, onLoaded: { pageLoaded = true }) { code in
+            LoginWebView(url: pkce.loginURL, state: pkce.state, onLoaded: { pageLoaded = true },
+                         onFailed: { _ in done(.failure(LoginPageError())) }) { code in
                 exchanging = true
                 Task {
                     do {
@@ -82,9 +87,17 @@ struct LoginWebView: UIViewRepresentable {
     let url: URL
     let state: String  // the login's own: a redirect carrying another one isn't ours
     let onLoaded: () -> Void
+    let onFailed: (Error) -> Void
     let onCode: (String) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(state: state, onLoaded: onLoaded, onCode: onCode) }
+    /// A failure worth showing: not a navigation we cancelled, nor the redirect we stop ourselves (WebKit 102).
+    static func isLoadFailure(_ error: Error) -> Bool {
+        let e = error as NSError
+        if e.domain == NSURLErrorDomain && e.code == NSURLErrorCancelled { return false }
+        return !(e.domain == "WebKitErrorDomain" && e.code == 102)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(state: state, onLoaded: onLoaded, onFailed: onFailed, onCode: onCode) }
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -100,13 +113,24 @@ struct LoginWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate {
         let state: String
         let onLoaded: () -> Void
+        let onFailed: (Error) -> Void
         let onCode: (String) -> Void
         private var handled = false
-        init(state: String, onLoaded: @escaping () -> Void, onCode: @escaping (String) -> Void) {
-            self.state = state; self.onLoaded = onLoaded; self.onCode = onCode
+        init(state: String, onLoaded: @escaping () -> Void, onFailed: @escaping (Error) -> Void, onCode: @escaping (String) -> Void) {
+            self.state = state; self.onLoaded = onLoaded; self.onFailed = onFailed; self.onCode = onCode
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { onLoaded() }
+
+        // offline, DNS, TLS: without these the spinner would turn forever
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { failed(error) }
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { failed(error) }
+
+        private func failed(_ error: Error) {
+            guard !handled, LoginWebView.isLoadFailure(error) else { return }
+            log.error("login page: \(String(describing: error), privacy: .public)")
+            onFailed(error)
+        }
 
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                      decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {

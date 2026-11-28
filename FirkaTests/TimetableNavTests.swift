@@ -66,17 +66,21 @@ struct TimetableNavTests {
 
     @Test("swiping crosses weeks at the ends")
     func stepAcrossWeeks() {
-        let days = TimetableNav.days(week: monday, lessonDays: schoolWeek)
         let friday = budapest(2026, 11, 27)
-        #expect(TimetableNav.step(day: monday, days: days, week: monday, by: 1) == (monday, budapest(2026, 11, 24)))
-        #expect(TimetableNav.step(day: friday, days: days, week: monday, by: 1) == (budapest(2026, 11, 30), budapest(2026, 11, 30)))
-        #expect(TimetableNav.step(day: monday, days: days, week: monday, by: -1) == (lastMonday, budapest(2026, 11, 20)))
+        #expect(TimetableNav.step(day: monday, week: monday, lessonDays: schoolWeek, by: 1) == (monday, budapest(2026, 11, 24)))
+        #expect(TimetableNav.step(day: friday, week: monday, lessonDays: schoolWeek, by: 1) == (budapest(2026, 11, 30), budapest(2026, 11, 30)))
+        #expect(TimetableNav.step(day: monday, week: monday, lessonDays: schoolWeek, by: -1) == (lastMonday, budapest(2026, 11, 20)))
     }
 
     @Test("swiping from a day outside the strip goes to its first day, or back a week")
     func stepFromOutside() {
-        let days = TimetableNav.days(week: monday, lessonDays: schoolWeek)
-        #expect(TimetableNav.step(day: sunday, days: days, week: monday, by: 1) == (monday, monday))
-        #expect(TimetableNav.step(day: sunday, days: days, week: monday, by: -1) == (lastMonday, budapest(2026, 11, 20)))
+        #expect(TimetableNav.step(day: sunday, week: monday, lessonDays: schoolWeek, by: 1) == (monday, monday))
+        #expect(TimetableNav.step(day: sunday, week: monday, lessonDays: schoolWeek, by: -1) == (lastMonday, budapest(2026, 11, 20)))
+    }
+
+    @Test("swiping back from Monday lands on a working Saturday of the week before, not on its Friday")
+    func stepBackToSaturday() {
+        let saturday = budapest(2026, 11, 21)
+        #expect(TimetableNav.step(day: monday, week: monday, lessonDays: schoolWeek.union([saturday]), by: -1) == (lastMonday, saturday))
     }
 }
