@@ -141,7 +141,8 @@ final class AppStore {
     var kretaClient: KretaClient? { client }
 
     /// Full text of a teacher message: downloaded once, then kept with the cached data.
-    func fullMessage(_ id: String) async -> String? {
+    /// nil: nothing to download (not a teacher message, or the demo). A failed download throws.
+    func fullMessage(_ id: String) async throws -> String? {
         guard id.hasPrefix("p"), let n = Int(id.dropFirst()) else { return nil }
         if let body = data.inboxBodies?[String(n)] { return body }
         guard let client, let url = URL(string: "https://eugyintezes.e-kreta.hu/api/v1/kommunikacio/postaladaelemek/\(n)") else { return nil }
@@ -153,7 +154,7 @@ final class AppStore {
             return body
         } catch {
             log.error("message \(n, privacy: .public) failed: \(String(describing: error), privacy: .public)")
-            return nil
+            throw error
         }
     }
     var isDemo: Bool { UserDefaults.standard.bool(forKey: Pref.demo) }
@@ -429,16 +430,22 @@ enum Notifier {
             // with surprise grades on, don't spoil the value in the notification
             add("grades", "Új jegy érkezett", { "\($0) új jegy érkezett" },
                 diff(old.grades, new.grades).map { "\($0.tantargy.name): \(surprise ? "új jegy" : $0.display)" })
+            // the same grade with another value: the teacher corrected it
+            let was = Dictionary(old.grades.map { ($0.uid, $0.display) }, uniquingKeysWith: { a, _ in a })
+            add("edited", "Módosult egy jegy", { "\($0) jegy módosult" }, new.grades.compactMap { g in
+                guard let before = was[g.uid], before != g.display else { return nil }
+                return "\(g.tantargy.name): \(surprise ? "módosult" : "\(before) → \(g.display)")"
+            })
         }
         if enabled("notifyLessons"), !old.lessons.isEmpty {
             let wasCancelled = Set(old.lessons.filter(\.isCancelled).map(\.id))
-            let wasSubst = Set(old.lessons.filter { $0.helyettesTanarNeve != nil }.map(\.id))
+            let wasSubst = Dictionary(old.lessons.map { ($0.id, $0.helyettesTanarNeve) }, uniquingKeysWith: { a, _ in a })
             let future = new.lessons.filter { !$0.isEvent && $0.vegIdopont > now && !isHidden($0) }
             add("cancelled", "Elmaradt óra", { "\($0) elmaradt óra" },
                 future.filter { $0.isCancelled && !wasCancelled.contains($0.id) }
                     .map { "\($0.title) – \($0.kezdetIdopont.hu("EEEE HH:mm"))" })
             add("substituted", "Helyettesítés", { "\($0) helyettesítés" },
-                future.filter { !$0.isCancelled && $0.helyettesTanarNeve != nil && !wasSubst.contains($0.id) }
+                future.filter { !$0.isCancelled && $0.helyettesTanarNeve != nil && wasSubst[$0.id] != $0.helyettesTanarNeve }
                     .map { "\($0.title): \($0.helyettesTanarNeve?.renamedTeacher ?? "") (\($0.kezdetIdopont.hu("EEEE HH:mm")))" })
         }
         if enabled("notifyHomework") {
@@ -449,6 +456,11 @@ enum Notifier {
         if enabled("notifyAbsences") {
             add("absences", "Új hiányzás/késés", { "\($0) új hiányzás/késés" },
                 diff(old.absences, new.absences).map { "\($0.tantargy.name): \($0.stateLabel)" })
+            // KRÉTA keeps the absence and changes its state; unexcused is the one that matters
+            let wasUnexcused = Dictionary(old.absences.map { ($0.uid, $0.igazolasAllapota == "Igazolatlan") }, uniquingKeysWith: { a, _ in a })
+            add("unexcused", "Igazolatlan lett", { "\($0) mulasztás igazolatlan lett" },
+                new.absences.filter { $0.igazolasAllapota == "Igazolatlan" && wasUnexcused[$0.uid] == false }
+                    .map { "\($0.tantargy.name): \($0.stateLabel)" })
         }
         if enabled("notifyMessages") {
             // The first sync with teacher messages would otherwise announce years of them.

@@ -46,6 +46,32 @@ struct ScreenLogicTests {
         #expect(HomeLogic.minutesLeft(until: monday.addingTimeInterval(seconds), now: monday) == minutes)
     }
 
+    @Test("a lesson's announced test: by KRÉTA's link, else the same day, subject and lesson number")
+    func lessonsTest() {
+        let day = budapest(2026, 11, 26)
+        let math = Tantargy(uid: "s-matematika", nev: "matematika")
+        let t = { (uid: String, n: Int?, subject: Tantargy) in
+            Szamonkeres(uid: uid, datum: day, bejelentesDatuma: day, orarendiOraOraszama: n, tantargy: subject)
+        }
+        var linked = lesson("l", day: day, from: 600, number: 3)
+        linked.bejelentettSzamonkeresUid = "x"
+        let tests = [t("other", 3, Tantargy(uid: "s-fizika", nev: "fizika")), t("x", 5, math), t("m", 3, math)]
+        #expect(linked.announcedTest(in: tests)?.uid == "x")
+        #expect(lesson("l", day: day, from: 600, number: 3).announcedTest(in: tests)?.uid == "m")
+        #expect(lesson("l", day: day, from: 600, number: 4).announcedTest(in: tests) == nil)
+        #expect(lesson("l", day: day.adding(days: 1), from: 600, number: 3).announcedTest(in: tests) == nil)
+    }
+
+    @Test("home: upcoming homework without the ones marked solved in KRÉTA")
+    func openHomework() {
+        let s = Tantargy(uid: "s", nev: "matematika")
+        let hw = { (uid: String, days: Int, solved: Bool?) in
+            HaziFeladat(uid: uid, tantargy: s, feladasDatuma: monday, hataridoDatuma: monday.adding(days: days), isMegoldva: solved)
+        }
+        let all = [hw("done", 1, true), hw("open", 2, false), hw("unknown", 3, nil), hw("past", -1, false)]
+        #expect(HomeLogic.openHomework(all, today: monday).map(\.uid) == ["open", "unknown"])
+    }
+
     @Test("homework and tests: upcoming soonest first, past latest first; due today is upcoming")
     func upcomingPast() {
         let dates = [monday.adding(days: -2), monday.adding(days: 3), monday, monday.adding(days: -9), monday.adding(days: 1)]
@@ -63,6 +89,22 @@ struct ScreenLogicTests {
                                                    a("5", "Igazolt", late: 5), a("6", "Igazolatlan", late: 12)].joined(separator: ",") + "]")
         let s = AbsenceStats(list)
         #expect(s.justified == 2 && s.unjustified == 1 && s.pending == 1 && s.lateMinutes == 17)
+    }
+
+    @Test("absences: the filter (unexcused, to excuse) and per-subject totals, most missed first")
+    func absenceFilterAndSubjects() throws {
+        func a(_ uid: String, _ state: String, subject: String = subjectJSON, late: Int? = nil) -> String {
+            #"{"Uid":"\#(uid)","Tantargy":\#(subject),"Datum":"2025-11-09T23:00:00Z","IgazolasAllapota":"\#(state)","KesesPercben":\#(late.map(String.init) ?? "null"),"Tipus":{"Nev":"\#(late == nil ? "hianyzas" : "keses")"}}"#
+        }
+        let list: [Mulasztas] = try decode("[" + [a("1", "Igazolt"), a("2", "Igazolatlan", subject: historyJSON), a("3", "Igazolando"),
+                                                   a("4", "Igazolatlan", late: 5), a("5", "Igazolt", subject: historyJSON),
+                                                   a("6", "Igazolt", subject: historyJSON)].joined(separator: ",") + "]")
+        #expect(AbsenceFilter.all.apply(list).count == 6)
+        #expect(AbsenceFilter.unexcused.apply(list).map(\.uid) == ["2", "4"])
+        #expect(AbsenceFilter.pending.apply(list).map(\.uid) == ["3"])
+        let subjects = AbsenceFilter.bySubject(list)
+        #expect(subjects.map(\.subject.name) == ["Történelem", "Matematika"])
+        #expect(subjects.map(\.absences) == [3, 2] && subjects.map(\.lateMinutes) == [0, 5])
     }
 
     @Test("class average: only over the subjects you have grades in")

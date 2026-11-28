@@ -119,6 +119,28 @@ final class FirkaUITests: XCTestCase {
         XCTAssertLessThanOrEqual(gap, 24, "gap under the strip: \(gap) pt")
     }
 
+    func testAnnouncedTestInTheDayList() {
+        tab("Órarend")
+        XCTAssertTrue(shows(weekTitle))
+        // the demo's test is on Thursday of this week; on a free weekend the timetable opens on the next one
+        if Calendar.current.isDateInWeekend(Date()) { app.buttons["previousWeek"].tap() }
+        app.buttons.matching(identifier: "day").element(boundBy: 3).tap()
+        XCTAssertTrue(shows(app.staticTexts["Írásbeli témazáró · Az Árpád-kor"]), "the day's test, not only a dot on the strip")
+    }
+
+    func testAbsenceFilterDetailAndSubjects() {
+        tab("Hiányzások")
+        app.buttons["Igazolandó"].tap()
+        let rows = app.buttons.matching(identifier: "absenceRow")
+        XCTAssertTrue(shows(rows.firstMatch))
+        XCTAssertEqual(rows.count, 1, "only the one to excuse")
+        rows.firstMatch.tap()
+        XCTAssertTrue(shows(app.staticTexts["Rögzítette"]), "the detail says who recorded it")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["Tantárgyak"].tap()
+        XCTAssertTrue(shows(app.staticTexts.matching(identifier: "absenceSubject").firstMatch))
+    }
+
     func testMonthViewAndBack() {
         tab("Órarend")
         app.buttons["Hónap"].tap()
@@ -189,6 +211,22 @@ final class FirkaUITests: XCTestCase {
                       "the grade's teacher on the detail screen")
     }
 
+    func testWhatIfWithAWeightAndRemovingOne() {
+        openMath()
+        let weight = app.buttons["200%"]
+        for _ in 0..<4 where !weight.isHittable { app.swipeUp() }
+        weight.tap()
+        app.buttons["whatIf5"].tap()
+        app.buttons["300%"].tap()
+        app.buttons["whatIf1"].tap()
+        let chips = app.buttons.matching(identifier: "whatIfChip")
+        XCTAssertEqual(chips.count, 2)
+        XCTAssertTrue(chips.firstMatch.label.contains("200%"))
+        chips.firstMatch.tap()
+        XCTAssertEqual(chips.count, 1, "a tapped grade goes, the other stays")
+        XCTAssertTrue(chips.firstMatch.label.contains("300%"))
+    }
+
     func testHideALessonAndShowItAgain() {
         tab("Órarend")
         let rows = app.buttons.matching(identifier: "lessonRow")
@@ -217,9 +255,27 @@ final class FirkaUITests: XCTestCase {
         tab("Egyebek")  // tapping the open tab goes back to its start
         app.buttons["Házi feladatok"].tap()
         XCTAssertTrue(shows(app.staticTexts["Matematika"]), "the demo homework")
+        XCTAssertTrue(shows(app.staticTexts["Megoldva"]), "the solved one says so")
         tab("Egyebek")
         app.buttons["Számonkérések"].tap()
         XCTAssertTrue(shows(app.staticTexts["Írásbeli témazáró · Az Árpád-kor"]))
+    }
+
+    func testMessagesUnreadFilterAndSearch() {
+        tab("Egyebek")
+        app.buttons["Üzenetek, feljegyzések"].tap()
+        XCTAssertTrue(shows(app.staticTexts["Szülői értekezlet"]))
+        XCTAssertTrue(app.descendants(matching: .any)["Olvasatlan"].exists, "the unread teacher message is marked")
+        app.buttons["Faliújság"].tap()
+        XCTAssertTrue(shows(app.staticTexts["Szalagavató próba"]))
+        XCTAssertFalse(app.staticTexts["Szülői értekezlet"].exists)
+        app.buttons["Mind"].tap()
+        let search = app.searchFields.firstMatch
+        if !search.exists { app.swipeDown() }
+        search.tap()
+        search.typeText("fizika")
+        XCTAssertTrue(shows(app.staticTexts["Dicséret"]), "found in the note's text")
+        XCTAssertFalse(app.staticTexts["Szalagavató próba"].exists)
     }
 
     func testRenameASubject() {

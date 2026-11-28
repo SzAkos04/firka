@@ -3,11 +3,12 @@ import UserNotifications
 
 struct AbsencesView: View {
     @Environment(AppStore.self) private var store
+    @State private var filter = AbsenceFilter.all
 
     var body: some View {
         let all = store.data.absences.sorted { $0.datum > $1.datum }
         let stats = AbsenceStats(all)
-        let byDay = Dictionary(grouping: all) { $0.datum.startOfDay }.sorted { $0.key > $1.key }
+        let byDay = Dictionary(grouping: filter.apply(all)) { $0.datum.startOfDay }.sorted { $0.key > $1.key }
 
         NavigationStack {
             List {
@@ -22,25 +23,46 @@ struct AbsencesView: View {
                     .listRowBackground(Color.clear)
                 }
 
-                ForEach(byDay, id: \.key) { day, items in
-                    Section(day.hu("yMMMMd EEEE")) {
-                        ForEach(items.sorted { ($0.ora?.oraszam ?? 0) < ($1.ora?.oraszam ?? 0) }) { a in
-                            HStack(spacing: 12) {
-                                Text(a.ora?.oraszam.map { "\($0)." } ?? "")
-                                    .font(.headline.monospacedDigit()).frame(width: 30)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(a.tantargy.name)
-                                    Text([a.isLate ? "Késés, \(a.kesesPercben ?? 0) perc" : "Hiányzás",
-                                          a.igazolasAllapota == "Igazolt" ? a.igazolasTipusa?.leiras : nil]
-                                        .compactMap { $0 }.joined(separator: " · "))
-                                        .font(.caption).foregroundStyle(.secondary)
+                if !all.isEmpty {
+                    Picker("Szűrő", selection: $filter) {
+                        ForEach(AbsenceFilter.allCases, id: \.self) { Text($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowInsets(EdgeInsets())
+                    .listRowBackground(Color.clear)
+                }
+
+                if filter == .subjects {
+                    Section {
+                        ForEach(AbsenceFilter.bySubject(all), id: \.subject.uid) { s in
+                            LabeledContent(s.subject.name, value: s.lateMinutes > 0 ? "\(s.absences) óra · \(s.lateMinutes) perc késés" : "\(s.absences) óra")
+                                .accessibilityIdentifier("absenceSubject")
+                        }
+                    } footer: { Text("Hiányzott órák tantárgyanként; a késések percben, külön.") }
+                } else {
+                    ForEach(byDay, id: \.key) { day, items in
+                        Section(day.hu("yMMMMd EEEE")) {
+                            ForEach(items.sorted { ($0.ora?.oraszam ?? 0) < ($1.ora?.oraszam ?? 0) }) { a in
+                                NavigationLink(value: a) {
+                                    HStack(spacing: 12) {
+                                        Text(a.ora?.oraszam.map { "\($0)." } ?? "")
+                                            .font(.headline.monospacedDigit()).frame(width: 30)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(a.tantargy.name)
+                                            Text([a.isLate ? "Késés, \(a.kesesPercben ?? 0) perc" : "Hiányzás",
+                                                  a.igazolasAllapota == "Igazolt" ? a.igazolasTipusa?.leiras : nil]
+                                                .compactMap { $0 }.joined(separator: " · "))
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        Text(a.stateShort)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(a.stateColor)
+                                            .padding(.horizontal, 8).padding(.vertical, 3)
+                                            .background(a.stateColor.opacity(0.15), in: Capsule())
+                                    }
                                 }
-                                Spacer()
-                                Text(a.stateShort)
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(a.stateColor)
-                                    .padding(.horizontal, 8).padding(.vertical, 3)
-                                    .background(a.stateColor.opacity(0.15), in: Capsule())
+                                .accessibilityIdentifier("absenceRow")
                             }
                         }
                     }
@@ -48,8 +70,28 @@ struct AbsencesView: View {
             }
             .overlay { if all.isEmpty { ContentUnavailableView("Nincs hiányzásod", systemImage: "checkmark.seal") } }
             .navigationTitle("Hiányzások")
+            .navigationDestination(for: Mulasztas.self) { AbsenceDetail(absence: $0) }
             .refreshable { await store.refresh() }
         }
+    }
+}
+
+struct AbsenceDetail: View {
+    let absence: Mulasztas
+
+    var body: some View {
+        let a = absence
+        List {
+            LabeledContent("Dátum", value: a.datum.hu("yMMMMd EEEE"))
+            if let o = a.ora {
+                LabeledContent("Óra", value: [o.oraszam.map { "\($0)." }, "\(o.kezdoDatum.time)–\(o.vegDatum.time)"].compactMap { $0 }.joined(separator: " "))
+            }
+            LabeledContent("Típus", value: a.isLate ? "Késés, \(a.kesesPercben ?? 0) perc" : "Hiányzás")
+            LabeledContent("Állapot", value: a.stateShort).foregroundStyle(a.stateColor)
+            if a.igazolasAllapota == "Igazolt", let t = a.igazolasTipusa?.leiras { LabeledContent("Igazolás", value: t) }
+            if let t = a.rogzitoTanarNeve { LabeledContent("Rögzítette", value: t.renamedTeacher) }
+        }
+        .navigationTitle(a.tantargy.name)
     }
 }
 
@@ -146,28 +188,46 @@ struct TestsList: View {
 
 struct MessagesList: View {
     @Environment(AppStore.self) private var store
+    @State private var filter = MessageFilter.all
+    @State private var search = ""
 
     var body: some View {
-        let messages = store.data.messages
-        List(messages) { m in
-            NavigationLink(value: m) {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text(m.title).font(.headline).lineLimit(1)
-                        Spacer()
-                        if !m.attachments.isEmpty {
-                            Image(systemName: "paperclip").font(.caption).foregroundStyle(.secondary)
-                                .accessibilityLabel("Csatolmány")
+        let messages = filter.apply(store.data.messages, search: search)
+        List {
+            Picker("Forrás", selection: $filter) {
+                ForEach(MessageFilter.allCases, id: \.self) { Text($0.rawValue) }
+            }
+            .pickerStyle(.segmented)
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            ForEach(messages) { m in
+                NavigationLink(value: m) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack {
+                            if m.unread {
+                                Circle().fill(Color.accentColor).frame(width: 8, height: 8).accessibilityLabel("Olvasatlan")
+                            }
+                            Text(m.title).font(.headline.weight(m.unread ? .bold : .semibold)).lineLimit(1)
+                            Spacer()
+                            if !m.attachments.isEmpty {
+                                Image(systemName: "paperclip").font(.caption).foregroundStyle(.secondary)
+                                    .accessibilityLabel("Csatolmány")
+                            }
+                            Text(m.date.hu(Calendar.hu.isDate(m.date, equalTo: Date(), toGranularity: .year) ? "MMMd" : "yMMMd"))
+                                .font(.caption).foregroundStyle(.secondary)
                         }
-                        Text(m.date.hu(Calendar.hu.isDate(m.date, equalTo: Date(), toGranularity: .year) ? "MMMd" : "yMMMd"))
-                            .font(.caption).foregroundStyle(.secondary)
+                        if let a = m.author { Text(a).font(.caption).foregroundStyle(.secondary) }
+                        Text(m.html.strippingTags).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                     }
-                    if let a = m.author { Text(a).font(.caption).foregroundStyle(.secondary) }
-                    Text(m.html.strippingTags).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                 }
             }
         }
-        .overlay { if messages.isEmpty { ContentUnavailableView("Nincs üzenet", systemImage: "envelope.open") } }
+        .overlay {
+            if messages.isEmpty {
+                if search.isEmpty { ContentUnavailableView("Nincs üzenet", systemImage: "envelope.open") } else { ContentUnavailableView.search(text: search) }
+            }
+        }
+        .searchable(text: $search, prompt: "Keresés")
         .navigationTitle("Üzenetek")
         .refreshable { await store.refresh() }
     }
@@ -177,6 +237,7 @@ struct MessageDetail: View {
     let message: Message
     @Environment(AppStore.self) private var store
     @State private var html: String?
+    @State private var failed = false
 
     var body: some View {
         ScrollView {
@@ -185,6 +246,11 @@ struct MessageDetail: View {
                 Text([message.author, message.date.hu("yMMMMd")].compactMap { $0 }.joined(separator: " · "))
                     .font(.subheadline).foregroundStyle(.secondary)
                 Divider()
+                if failed {
+                    Label("Nem sikerült letölteni a teljes üzenetet; ez csak az eleje.", systemImage: "exclamationmark.triangle")
+                        .font(.footnote).foregroundStyle(Color.pending)
+                    Button("Újra") { Task { await load() } }.font(.footnote)
+                }
                 HTMLText(html: html ?? message.html)
                 if !message.attachments.isEmpty {
                     AttachmentList(attachments: message.attachments).padding(.top, 8)
@@ -195,7 +261,16 @@ struct MessageDetail: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         // teacher messages arrive shortened in the list; fetch the whole text
-        .task(id: message.id) { if let full = await store.fullMessage(message.id) { html = full } }
+        .task(id: message.id) { await load() }
+    }
+
+    private func load() async {
+        do {
+            if let full = try await store.fullMessage(message.id) { html = full }
+            failed = false
+        } catch {
+            failed = !isCancellation(error)
+        }
     }
 }
 
@@ -207,6 +282,7 @@ struct SettingsView: View {
     @AppStorage(Pref.liveActivity) private var liveActivity = true
     @AppStorage(Pref.serverPush) private var serverPush = false
     @State private var serverStatus: Result<ServerPush.Status, Error>?
+    @State private var testSent: Bool?  // the test button's outcome
 
     var body: some View {
         Form {
@@ -227,6 +303,16 @@ struct SettingsView: View {
                         Label("A szerver nem érhető el (Tailscale be van kapcsolva?)", systemImage: "exclamationmark.triangle.fill")
                     case nil:
                         LabeledContent("Szerver utolsó lekérdezése", value: "…")
+                    }
+                    Button("Teszt értesítés küldése") {
+                        guard let base = ServerPush.base else { return }
+                        testSent = nil
+                        Task { testSent = (try? await ServerPush.sendTest(to: base)) != nil }
+                    }
+                    .accessibilityIdentifier("serverPushTest")
+                    if let testSent {
+                        Text(testSent ? "Elküldve: pár másodpercen belül meg kell jönnie." : "Nem sikerült elküldeni (Tailscale be van kapcsolva?)")
+                            .font(.footnote).foregroundStyle(.secondary)
                     }
                 } else if let notifStatus, let why = Notifier.blocker(auth: notifStatus, refresh: UIApplication.shared.backgroundRefreshStatus,
                                                                lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled) {

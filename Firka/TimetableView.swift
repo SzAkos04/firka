@@ -89,10 +89,12 @@ struct TimetableView: View {
         let events = items.filter(\.isEvent)
         let real = items.filter { !$0.isEvent }
         let hidden = real.filter(HiddenLessons.shared.isHidden)
+        let tests = store.data.tests.filter { $0.datum.startOfDay == day }
         return List {
             ForEach(events) { e in
                 Label(e.nev ?? e.tipus.leiras ?? "Esemény", systemImage: "flag.fill").foregroundStyle(.purple)
             }
+            ForEach(tests) { t in NavigationLink(value: t) { TestRow(test: t) } }
             ForEach(showHidden ? real : real.filter { !hidden.contains($0) }) { l in
                 NavigationLink(value: l) {
                     TimelineView(.everyMinute) { ctx in LessonRow(lesson: l, active: l.isOn(at: ctx.date)) }
@@ -105,7 +107,7 @@ struct TimetableView: View {
         }
         .overlay {
             if loading && items.isEmpty { ProgressView() }
-            else if real.isEmpty && events.isEmpty { ContentUnavailableView("Nincs óra", systemImage: "sun.max") }
+            else if real.isEmpty && events.isEmpty && tests.isEmpty { ContentUnavailableView("Nincs óra", systemImage: "sun.max") }
         }
         .onChange(of: day) { showHidden = false }
         .refreshable { await store.refresh(); await load() }

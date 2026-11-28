@@ -28,7 +28,7 @@ struct GradesTests {
     @Test func empty() {
         let none: [Ertekeles] = []
         #expect(none.average == nil && none.overallAverage == nil && none.runningAverage.isEmpty)
-        #expect(none.average(adding: [5, 5]) == 5)
+        #expect(none.average(adding: [WhatIf(5), WhatIf(5)]) == 5)
     }
 
     @Test("grades made the same moment are one point of the chart (the average after both), not a vertical jump")
@@ -47,12 +47,14 @@ struct GradesTests {
         #expect([Ertekeles]().teacher == nil)
     }
 
-    @Test("what-if grades count at 100%")
+    @Test("what-if grades: 100% unless another weight is picked")
     func whatIf() throws {
         let g = try grades(gradeJSON("a", 5, 200), gradeJSON("b", 2, 100))  // 4,00
         #expect(g.average(adding: []) == g.average)
-        #expect(g.average(adding: [5]) == 4.25)
-        #expect(abs(g.average(adding: [1, 1])! - 14.0 / 5) < 0.0001)
+        #expect(g.average(adding: [WhatIf(5)]) == 4.25)
+        #expect(abs(g.average(adding: [WhatIf(1), WhatIf(1)])! - 14.0 / 5) < 0.0001)
+        #expect(g.average(adding: [WhatIf(5, weight: 200)]) == 4.4, "(10 + 2 + 10) / 5")
+        #expect(g.average(adding: [WhatIf(1, weight: 50)]) == 12.5 / 3.5, "(10 + 2 + 0,5) / 3,5")
     }
 
     @Test("overall = mean of subject averages, not of all grades")
@@ -119,6 +121,16 @@ struct RevealNoteTests {
         #expect(m[0].revealNote(previous: [], rounding: r)?.text == "Átlag: 5,00")
         let fives = try grades(gradeJSON("g1", 5, 50), gradeJSON("g2", 5, 100), gradeJSON("g3", 5, 50))
         #expect(fives[2].revealNote(previous: Array(fives[0...1]), rounding: r) == RevealNote(text: "Hibátlan maradt: 3/3 ötös", good: true))
+    }
+
+    @Test("a percentage result: what it did to the subject's percentage average")
+    func percentage() throws {
+        let p = try grades(gradeJSON("p1", 60, 100, valueType: "Szazalekos"), gradeJSON("p2", 80, 100, valueType: "Szazalekos"),
+                           gradeJSON("p3", 90, 100, valueType: "Szazalekos"), gradeJSON("p4", 40, 100, valueType: "Szazalekos"),
+                           gradeJSON("x", 5, 100))
+        #expect(p[2].revealNote(previous: [p[0], p[1], p[4]], rounding: r) == RevealNote(text: "Átlag 70% → 77%", good: true))
+        #expect(p[3].revealNote(previous: [p[0], p[1]], rounding: r) == RevealNote(text: "Átlag 70% → 60%", good: false))
+        #expect(p[0].revealNote(previous: [p[4]], rounding: r) == RevealNote(text: "Eredmény: 60%", good: false))
     }
 
     @Test("text grade shows its text; half-year grade without weight has no note")

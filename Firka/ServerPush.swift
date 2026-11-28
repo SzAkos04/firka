@@ -35,15 +35,28 @@ enum ServerPush {
         req.httpMethod = "PUT"
         req.setValue("application/json", forHTTPHeaderField: "content-type")
         req.httpBody = try JSONEncoder().encode(p)
-        let (_, resp) = try await URLSession.shared.data(for: req)
-        let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(status) else { throw KretaError.http(status) }
+        _ = try await send(req)
     }
 
     /// Sends the settings if the server is in charge; a failure only logs (next time the app opens it goes again).
     static func sync() async {
         guard active, let base else { return }
         do { try await upload(current(), to: base) } catch { log.error("server prefs: \(String(describing: error), privacy: .public)") }
+    }
+
+    /// Settings' test button: the server sends one notification through ntfy.
+    static func sendTest(to base: URL) async throws {
+        var req = URLRequest(url: base.appendingPathComponent("api/test"), timeoutInterval: 15)
+        req.httpMethod = "POST"
+        _ = try await send(req)
+    }
+
+    /// The body of a 2xx answer; anything else is an error.
+    private static func send(_ req: URLRequest) async throws -> Data {
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<300).contains(status) else { throw KretaError.http(status) }
+        return data
     }
 
     struct Status: Decodable {
@@ -61,9 +74,6 @@ enum ServerPush {
     }
 
     static func status(from base: URL) async throws -> Status {
-        let (data, resp) = try await URLSession.shared.data(for: URLRequest(url: base.appendingPathComponent("api/status"), timeoutInterval: 15))
-        let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200..<300).contains(status) else { throw KretaError.http(status) }
-        return try JSONDecoder().decode(Status.self, from: data)
+        try JSONDecoder().decode(Status.self, from: try await send(URLRequest(url: base.appendingPathComponent("api/status"), timeoutInterval: 15)))
     }
 }

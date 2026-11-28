@@ -135,6 +135,29 @@ struct TextTests {
         #expect(m[2].title == "Kirándulás" && m[2].author == "Kovács Anna")
     }
 
+    @Test("unread: a teacher message KRÉTA hasn't seen read, until its full text is opened here")
+    func unread() throws {
+        var s = Snapshot()
+        s.notices = try decode(#"[{"Uid":"1","Cim":"Kirándulás","ErvenyessegKezdete":"2026-11-10T08:00:00Z"}]"#)
+        s.inbox = try decode("[\(inboxJSON(5, read: false)), \(inboxJSON(6, read: false)), \(inboxJSON(7))]")
+        s.inboxBodies = ["6": "megnyitva"]
+        #expect(Dictionary(uniqueKeysWithValues: s.messages.map { ($0.id, $0.unread) }) == ["p5": true, "p6": false, "p7": false, "n1": false])
+    }
+
+    @Test("messages: by source, and a search in the title, sender and text, any case and accent")
+    func messageFilter() {
+        let m = [Message(id: "p1", title: "Szülői értekezlet", author: "Varga Szabolcs", date: .now, html: "<p>kedden</p>"),
+                 Message(id: "n1", title: "Kirándulás", author: "Igazgatóság", date: .now, html: "<p>Hétfőn indulunk</p>"),
+                 Message(id: "f1", title: "Dicséret", author: nil, date: .now, html: "szép munka")]
+        #expect(MessageFilter.all.apply(m, search: "").map(\.id) == ["p1", "n1", "f1"])
+        #expect(MessageFilter.inbox.apply(m, search: "").map(\.id) == ["p1"])
+        #expect(MessageFilter.notices.apply(m, search: "").map(\.id) == ["n1"])
+        #expect(MessageFilter.notes.apply(m, search: "").map(\.id) == ["f1"])
+        #expect(MessageFilter.all.apply(m, search: "hetfon").map(\.id) == ["n1"], "text, without accents")
+        #expect(MessageFilter.all.apply(m, search: "varga").map(\.id) == ["p1"], "sender")
+        #expect(MessageFilter.notes.apply(m, search: "varga").isEmpty)
+    }
+
     @MainActor @Test("message HTML: no images or scripts are loaded, colours are dropped")
     func renderHTML() throws {
         let t = try #require(HTMLText.render(#"<p style="color:red">Szia <b>Elek</b></p><img src="https://example.com/x.png"><script>alert(1)</script>"#))

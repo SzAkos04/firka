@@ -99,7 +99,8 @@ const weekday = new Intl.DateTimeFormat('hu-HU', { weekday: 'long' })
 const when = (iso) => { const d = new Date(iso); return `${weekday.format(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}` }
 
 /**
- * The alerts between the last poll's state and new data, and the state to keep (ids only, nothing else on disk).
+ * The alerts between the last poll's state and new data, and the state to keep: ids, plus what a change of a known
+ * item needs (grade values, substitute names, which absences are unexcused).
  * Same rules as the app: no alerts on the first poll, an empty list followed by a full one is a new baseline,
  * a kind that failed to load (null) keeps what was known.
  */
@@ -131,13 +132,20 @@ export function changes(old, d, now, prefs = {}) {
   if (on('notifyGrades')) {
     add('grades', 'Új jegy érkezett', (n) => `${n} új jegy érkezett`,
       fresh('grades', d.grades).map((g) => `${subject(g.Tantargy.Nev)}: ${surprise ? 'új jegy' : display(g)}`))
+    // the same grade with another value: the teacher corrected it (no values kept before this: nothing to compare)
+    add('edited', 'Módosult egy jegy', (n) => `${n} jegy módosult`, old?.values ? d.grades.flatMap((g) => {
+      const before = old.values[g.Uid]
+      return before === undefined || before === display(g) ? [] : [`${subject(g.Tantargy.Nev)}: ${surprise ? 'módosult' : `${before} → ${display(g)}`}`]
+    }) : [])
   }
   if (on('notifyLessons') && old?.lessons) {
     const future = d.lessons.filter((o) => o.Tipus?.Nev !== 'TanevRendjeEsemeny' && new Date(o.VegIdopont) > now && !hidden(o, prefs.hidden))
     add('cancelled', 'Elmaradt óra', (n) => `${n} elmaradt óra`,
       future.filter((o) => cancelled(o) && !old.cancelled.includes(o.Uid)).map((o) => `${title(o)} – ${when(o.KezdetIdopont)}`))
     add('substituted', 'Helyettesítés', (n) => `${n} helyettesítés`,
-      future.filter((o) => !cancelled(o) && o.HelyettesTanarNeve && !old.subst.includes(o.Uid))
+      // subst was a list of uids before it kept the names: then only a lesson not in it is news
+      future.filter((o) => !cancelled(o) && o.HelyettesTanarNeve &&
+        (Array.isArray(old.subst) ? !old.subst.includes(o.Uid) : old.subst?.[o.Uid] !== o.HelyettesTanarNeve))
         .map((o) => `${title(o)}: ${teacher(o.HelyettesTanarNeve)} (${when(o.KezdetIdopont)})`))
   }
   if (on('notifyHomework')) {
@@ -148,6 +156,10 @@ export function changes(old, d, now, prefs = {}) {
   if (on('notifyAbsences')) {
     add('absences', 'Új hiányzás/késés', (n) => `${n} új hiányzás/késés`,
       fresh('absences', d.absences).map((a) => `${subject(a.Tantargy.Nev)}: ${absence(a)}`))
+    // KRÉTA keeps the absence and changes its state; unexcused is the one that matters
+    add('unexcused', 'Igazolatlan lett', (n) => `${n} mulasztás igazolatlan lett`, d.absences && old?.unexcused && old.absences ? d.absences
+      .filter((a) => a.IgazolasAllapota === 'Igazolatlan' && old.absences.includes(a.Uid) && !old.unexcused.includes(a.Uid))
+      .map((a) => `${subject(a.Tantargy.Nev)}: ${absence(a)}`) : [])
   }
   // Messages by source (the id's first letter): a source that failed keeps its ids; one never loaded before is a baseline.
   const loaded = Object.keys(d.messages).filter((src) => d.messages[src])
@@ -167,7 +179,9 @@ export function changes(old, d, now, prefs = {}) {
     // like the app: no lesson alerts until a timetable with lessons has been seen
     lessons: d.lessons.length ? d.lessons.length : old?.lessons ?? 0,
     cancelled: d.lessons.filter(cancelled).map((o) => o.Uid),
-    subst: d.lessons.filter((o) => o.HelyettesTanarNeve).map((o) => o.Uid),
+    subst: Object.fromEntries(d.lessons.filter((o) => o.HelyettesTanarNeve).map((o) => [o.Uid, o.HelyettesTanarNeve])),
+    values: Object.fromEntries(d.grades.map((g) => [g.Uid, display(g)])),
+    unexcused: d.absences ? d.absences.filter((a) => a.IgazolasAllapota === 'Igazolatlan').map((a) => a.Uid) : old?.unexcused ?? null,
   }
   return { alerts: out, state }
 }
@@ -186,7 +200,7 @@ function hidden(o, rules = []) {
 // --- one poll, and the loop ---
 
 /** Where a tap on the notification opens Firka (its URL scheme, AppTab in the app). */
-const tabs = { grades: 'grades', cancelled: 'timetable', substituted: 'timetable', absences: 'absences', homework: 'more', tests: 'more', messages: 'more' }
+const tabs = { test: 'home', grades: 'grades', edited: 'grades', unexcused: 'absences', cancelled: 'timetable', substituted: 'timetable', absences: 'absences', homework: 'more', tests: 'more', messages: 'more' }
 export const link = (id) => tabs[id] && `firka://${tabs[id]}`
 
 async function publish(ntfy, a) {
@@ -220,11 +234,12 @@ export async function pollOnce(dir, { k = KRETA, ntfy, now = new Date() }) {
 }
 
 /**
- * The phone's side, over the tailnet only (tailscale serve → 127.0.0.1): PUT /api/prefs, GET /api/status.
+ * The phone's side, over the tailnet only (tailscale serve → 127.0.0.1): PUT /api/prefs, GET /api/status,
+ * POST /api/test (Settings' test button: one notification through ntfy, to see the whole path works).
  * Tailscale names the sender in Tailscale-User-Login; only the owner gets in, so no password to keep.
  * GET /health is open (Uptime Kuma asks it over the Docker network) and says only ok or what is wrong.
  */
-export function api(dir, owner, status) {
+export function api(dir, owner, status, send) {
   return (req, res) => {
     const reply = (code, body) => { res.writeHead(code, body ? { 'content-type': 'application/json' } : {}); res.end(body && JSON.stringify(body)) }
     if (req.method === 'GET' && req.url === '/health') {
@@ -233,6 +248,10 @@ export function api(dir, owner, status) {
     }
     if (!owner || req.headers['tailscale-user-login'] !== owner) return reply(403)
     if (req.method === 'GET' && req.url === '/api/status') return reply(200, { ...status, loggedIn: existsSync(join(dir, 'token.json')) })
+    if (req.method === 'POST' && req.url === '/api/test') {
+      send({ id: 'test', title: 'Firka teszt', lines: ['A szerver értesítései működnek.'] }).then(() => reply(204), (e) => { console.error(String(e)); reply(502) })
+      return
+    }
     if (req.method !== 'PUT' || req.url !== '/api/prefs') return reply(404)
     let body = ''
     req.on('data', (c) => { body += c; if (body.length > 1e6) req.destroy() })
@@ -258,12 +277,12 @@ export const interval = (now) => { const h = now.getHours(); return (h >= 6 && h
 if (import.meta.url === `file://${process.argv[1]}`) {
   const dir = process.env.DATA_DIR ?? '/data'
   const status = { lastOk: new Date().toISOString() }   // a fresh start counts as good until the first hour runs out
-  createServer(api(dir, process.env.OWNER_LOGIN, status)).listen(Number(process.env.PORT ?? 8087))
+  const ntfy = () => ({ url: process.env.NTFY_URL, topic: process.env.NTFY_TOPIC, token: readFileSync(join(dir, 'publish-token'), 'utf8').trim() })
+  createServer(api(dir, process.env.OWNER_LOGIN, status, (a) => publish(ntfy(), a))).listen(Number(process.env.PORT ?? 8087))
   for (;;) {
     let wait
     try {
-      const ntfy = { url: process.env.NTFY_URL, topic: process.env.NTFY_TOPIC, token: readFileSync(join(dir, 'publish-token'), 'utf8').trim() }
-      const r = await pollOnce(dir, { ntfy })
+      const r = await pollOnce(dir, { ntfy: ntfy() })
       Object.assign(status, { lastPoll: new Date().toISOString(), result: r })
       if (r !== 'no-login' && r !== 'reauth') status.lastOk = status.lastPoll
       if (r !== 'no-login') console.log(status.lastPoll, r)

@@ -44,11 +44,11 @@ extension Snapshot {
 
         let absences = [
             Mulasztas(uid: "a0", tantargy: subjects[0], ora: .init(kezdoDatum: now.adding(days: -8), vegDatum: now.adding(days: -8), oraszam: 1),
-                      datum: now.adding(days: -8), tipus: nud("hianyzas", "Hiányzás"), igazolasAllapota: "Igazolt", igazolasTipusa: nud("Orvosi", "Orvosi igazolás")),
+                      datum: now.adding(days: -8), rogzitoTanarNeve: teachers[0], tipus: nud("hianyzas", "Hiányzás"), igazolasAllapota: "Igazolt", igazolasTipusa: nud("Orvosi", "Orvosi igazolás")),
             Mulasztas(uid: "a1", tantargy: subjects[1], ora: .init(kezdoDatum: now.adding(days: -8), vegDatum: now.adding(days: -8), oraszam: 2),
-                      datum: now.adding(days: -8), tipus: nud("hianyzas", "Hiányzás"), igazolasAllapota: "Igazolt", igazolasTipusa: nud("Orvosi", "Orvosi igazolás")),
+                      datum: now.adding(days: -8), rogzitoTanarNeve: teachers[0], tipus: nud("hianyzas", "Hiányzás"), igazolasAllapota: "Igazolt", igazolasTipusa: nud("Orvosi", "Orvosi igazolás")),
             Mulasztas(uid: "a2", tantargy: subjects[3], ora: .init(kezdoDatum: now.adding(days: -2), vegDatum: now.adding(days: -2), oraszam: 1),
-                      datum: now.adding(days: -2), tipus: nud("keses", "Késés"), kesesPercben: 7, igazolasAllapota: "Igazolando"),
+                      datum: now.adding(days: -2), rogzitoTanarNeve: teachers[3], tipus: nud("keses", "Késés"), kesesPercben: 7, igazolasAllapota: "Igazolando"),
         ]
 
         return Snapshot(
@@ -56,7 +56,9 @@ extension Snapshot {
             grades: grades, lessons: lessons, absences: absences,
             homework: [HaziFeladat(uid: "h0", tantargy: subjects[0], rogzitoTanarNeve: teachers[0],
                                    szoveg: "<p>Tankönyv <b>42. oldal</b> 3–7. feladat.</p><ul><li>a) rész</li><li>b) rész</li></ul>",
-                                   feladasDatuma: now.adding(days: -1), hataridoDatuma: week.adding(days: 4))],
+                                   feladasDatuma: now.adding(days: -1), hataridoDatuma: week.adding(days: 4)),
+                       HaziFeladat(uid: "h1", tantargy: subjects[1], rogzitoTanarNeve: teachers[1], szoveg: "<p>Olvasónapló a 3. fejezetig.</p>",
+                                   feladasDatuma: now.adding(days: -3), hataridoDatuma: week.adding(days: 3), isMegoldva: true)],
             tests: [Szamonkeres(uid: "t0", datum: week.adding(days: 3), bejelentesDatuma: now.adding(days: -5), rogzitoTanarNeve: teachers[2],
                                 orarendiOraOraszama: 2, tantargy: subjects[2], temaja: "Az Árpád-kor", modja: nud("irasbeli_temazaro", "Írásbeli témazáró"))],
             notices: [FaliujsagElem(uid: "n0", rogzitoNeve: "Igazgatóság", ervenyessegKezdete: now.adding(days: -1),
@@ -65,6 +67,9 @@ extension Snapshot {
                                tartalom: "Kiemelkedő munka a fizika versenyen.", tipus: nud("Dicseret", "Dicséret"))],
             // every subject but PE: a subject without one happens in real data too
             classAverages: Dictionary(uniqueKeysWithValues: zip(subjects.dropLast().map(\.uid), [3.92, 4.21, 3.85, 3.6, 3.4, 4.05, 3.75])),
+            inbox: [PostaladaElem(azonosito: 1, isElolvasva: false, tipus: .init(kod: "BEERKEZETT"),
+                                  uzenet: .init(azonosito: 1, kuldesDatum: now.adding(days: -2), feladoNev: teachers[0], feladoTitulus: "osztályfőnök",
+                                                targy: "Szülői értekezlet", szoveg: "<p>Csütörtökön 17 órakor szülői értekezlet lesz.</p>"))],
             updated: now)
     }
 }

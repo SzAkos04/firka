@@ -10,6 +10,7 @@ struct LessonLiveActivity: Widget {
                 .padding(16)
                 .environment(\.colorScheme, ctx.state.light ? .light : .dark)
                 .activityBackgroundTint(Color.liveCard(light: ctx.state.light))
+                .widgetURL(Shared.timetableLink)
         } dynamicIsland: { ctx in
             let s = ctx.state, l = s.focused
             return DynamicIsland {
@@ -34,6 +35,7 @@ struct LessonLiveActivity: Widget {
             } minimal: {
                 Image(systemName: "book.closed.fill").foregroundStyle(Color.liveAccent)
             }
+            .widgetURL(Shared.timetableLink)
         }
     }
 }

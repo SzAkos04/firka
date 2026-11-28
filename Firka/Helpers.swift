@@ -65,6 +65,21 @@ struct Message: Identifiable, Hashable {
     var date: Date
     var html: String
     var attachments: [Csatolmany] = []
+    var unread = false
+}
+
+/// The messages screen's filter: which source, and a search.
+enum MessageFilter: String, CaseIterable {
+    case all = "Mind", inbox = "Üzenetek", notices = "Faliújság", notes = "Feljegyzések"
+
+    func apply(_ all: [Message], search: String) -> [Message] {
+        let prefix: String? = switch self { case .all: nil; case .inbox: "p"; case .notices: "n"; case .notes: "f" }
+        let q = search.trimmingCharacters(in: .whitespaces)
+        return all.filter { m in
+            (prefix == nil || m.id.hasPrefix(prefix!))
+                && (q.isEmpty || [m.title, m.author ?? "", m.html.strippingTags].contains { $0.localizedStandardContains(q) })
+        }
+    }
 }
 
 extension Snapshot {
@@ -76,7 +91,9 @@ extension Snapshot {
              return Message(id: p.id, title: u.targy ?? "Üzenet",
                             author: [u.feladoNev?.renamedTeacher, u.feladoTitulus].compactMap { $0 }.joined(separator: ", "),
                             date: u.kuldesDatum, html: inboxBodies?[String(p.azonosito)] ?? u.szoveg ?? "",
-                            attachments: u.csatolmanyok ?? [])
+                            attachments: u.csatolmanyok ?? [],
+                            // opening it here downloads the full text: that counts as read (KRÉTA isn't told)
+                            unread: p.isElolvasva == false && inboxBodies?[String(p.azonosito)] == nil)
          })
             .sorted { $0.date > $1.date }
     }

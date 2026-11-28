@@ -72,6 +72,36 @@ struct NotifierTests {
         #expect(changes(old, new).first?.lines.first?.contains("Fekete Lili") == true)
     }
 
+    @Test("an absence the school turns unexcused is news; turning excused isn't")
+    func absenceTurnsUnexcused() throws {
+        func absence(_ uid: String, _ state: String) throws -> Mulasztas {
+            try decode(#"{"Uid":"\#(uid)","Tantargy":\#(subjectJSON),"Datum":"2026-11-16T23:00:00Z","IgazolasAllapota":"\#(state)"}"#)
+        }
+        var old = snapshot(), new = snapshot()
+        old.absences = [try absence("a", "Igazolando"), try absence("b", "Igazolando"), try absence("c", "Igazolatlan")]
+        new.absences = [try absence("a", "Igazolatlan"), try absence("b", "Igazolt"), try absence("c", "Igazolatlan")]
+        #expect(changes(old, new) == [Notifier.Alert(id: "unexcused", title: "Igazolatlan lett", lines: ["Matematika: Igazolatlan hiányzás"])])
+        #expect(changes(old, new, off: ["notifyAbsences"]).isEmpty)
+    }
+
+    @Test("another substitute teacher on the same lesson is news; the same one again isn't")
+    func substituteChanges() {
+        let day = budapest(2026, 11, 23)
+        let old = snapshot(lessons: [lesson("a", day: day, from: 480, substitute: "Fekete Lili"), lesson("b", day: day, from: 540, substitute: "Kiss Ede")])
+        let new = snapshot(lessons: [lesson("a", day: day, from: 480, substitute: "Nagy Béla"), lesson("b", day: day, from: 540, substitute: "Kiss Ede")])
+        let a = changes(old, new)
+        #expect(a.map(\.id) == ["substituted"] && a[0].lines.count == 1 && a[0].lines[0].contains("Nagy Béla"))
+    }
+
+    @Test("a grade the teacher corrects is news (its value only without surprise grades)")
+    func gradeEdited() throws {
+        let old = snapshot(grades: try grades(gradeJSON("a", 3, 100), gradeJSON("b", 5, 100)))
+        let new = snapshot(grades: try grades(gradeJSON("a", 4, 100), gradeJSON("b", 5, 100)))
+        #expect(changes(old, new) == [Notifier.Alert(id: "edited", title: "Módosult egy jegy", lines: ["Matematika: módosult"])])
+        #expect(changes(old, new, surprise: false).first?.lines == ["Matematika: 3 → 4"])
+        #expect(changes(old, new, off: ["notifyGrades"]).isEmpty)
+    }
+
     @Test("the first sync that has teacher messages doesn't announce years of them")
     func inboxBaseline() throws {
         var old = snapshot()

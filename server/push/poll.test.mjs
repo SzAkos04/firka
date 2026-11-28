@@ -55,6 +55,30 @@ test('messages: a source that has never loaded starts as a baseline when it firs
     ['Új üzenet', 'Cím p3'])
 })
 
+test('changes to known items: an absence turned unexcused, another substitute, a corrected grade', () => {
+  const thu12 = '2026-11-26T12:00:00+01:00'
+  const absence = (uid, state) => ({ Uid: uid, Tantargy: subj('matematika'), IgazolasAllapota: state })
+  const before = data({
+    grades: [grade('g1', 'irodalom', 3), grade('g2')],
+    lessons: [lesson('l1', thu12, { HelyettesTanarNeve: 'Fekete Lili' }), lesson('l2', thu12, { HelyettesTanarNeve: 'Kiss Ede' })],
+    absences: [absence('a1', 'Igazolando'), absence('a2', 'Igazolando'), absence('a3', 'Igazolatlan')],
+  })
+  const { state } = changes(null, before, now)
+  const after = data({
+    grades: [grade('g1', 'irodalom', 4), grade('g2')],
+    lessons: [lesson('l1', thu12, { HelyettesTanarNeve: 'Nagy Béla' }), lesson('l2', thu12, { HelyettesTanarNeve: 'Kiss Ede' })],
+    absences: [absence('a1', 'Igazolatlan'), absence('a2', 'Igazolt'), absence('a3', 'Igazolatlan')],
+  })
+  const r = changes(state, after, now)
+  assert.deepEqual(r.alerts.map((a) => a.id), ['edited', 'substituted', 'unexcused'])
+  assert.deepEqual(lines(r.alerts), ['Módosult egy jegy', 'Irodalom: módosult', 'Helyettesítés', 'Matematika: Nagy Béla (csütörtök 12:00)',
+    'Igazolatlan lett', 'Matematika: Igazolatlan hiányzás'])
+  assert.deepEqual(lines(changes(state, after, now, { surprise: false }).alerts).slice(0, 2), ['Módosult egy jegy', 'Irodalom: 3 → 4'])
+  assert.deepEqual(changes(r.state, after, now).alerts, [])
+  assert.equal(link('unexcused'), 'firka://absences')
+  assert.equal(link('edited'), 'firka://grades')
+})
+
 test('an empty list and then a full one is a new baseline, not a flood', () => {
   const { state } = changes(null, data(), now)
   const d = data({ grades: ['a', 'b', 'c', 'd'].map((u) => grade(u)) })
@@ -216,6 +240,23 @@ test('the phone sends its settings; only the owner, as Tailscale names them', as
   assert.deepEqual(await st.json(), { ...status, loggedIn: false })
   assert.equal((await fetch(url('/api/status'))).status, 403)
   assert.equal((await fetch(url('/nope'), { headers: who('owner@example.com') })).status, 404)
+})
+
+test('a test notification from Settings: only the owner; it opens Firka; a failing ntfy is a 502', async (t) => {
+  const sent = []
+  let ntfyDown = false
+  const send = async (a) => { if (ntfyDown) throw new Error('ntfy: HTTP 500'); sent.push(a) }
+  const srv = createServer(api(mkdtempSync(join(tmpdir(), 'firka-push-')), 'owner@example.com', {}, send))
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r)); t.after(() => srv.close())
+  const post = (login) => fetch(`http://127.0.0.1:${srv.address().port}/api/test`, { method: 'POST', headers: login ? { 'tailscale-user-login': login } : {} })
+  assert.equal((await post(null)).status, 403)
+  assert.equal(sent.length, 0)
+  assert.equal((await post('owner@example.com')).status, 204)
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].id, 'test')
+  assert.equal(link('test'), 'firka://home')
+  ntfyDown = true
+  assert.equal((await post('owner@example.com')).status, 502)
 })
 
 test('Uptime Kuma asks /health, no login needed: down when signed out or no good poll for an hour', async (t) => {

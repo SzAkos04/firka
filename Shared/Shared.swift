@@ -3,6 +3,9 @@ import SwiftUI
 // Shared between the app and the widget extension.
 
 enum Shared {
+    /// Where a tap on the widget or the Live Activity opens the app (AppTab).
+    static let timetableLink = URL(string: "firka://timetable")!
+
     // "group.$(APP_ID)", set in Config/*-Info.plist and the entitlements.
     static let appGroup = Bundle.main.object(forInfoDictionaryKey: "FirkaAppGroup") as? String ?? ""
 

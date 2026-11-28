@@ -108,7 +108,7 @@ struct FirkaWidgets: WidgetBundle {
 struct FirkaWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "FirkaNextLesson", provider: Provider()) { entry in
-            FirkaWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget)
+            FirkaWidgetView(entry: entry).containerBackground(.fill.tertiary, for: .widget).widgetURL(Shared.timetableLink)
         }
         .configurationDisplayName("Következő óra")
         .description("A mostani és a következő óráid.")

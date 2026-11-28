@@ -35,9 +35,9 @@ extension Array where Element == Ertekeles {
     var countedInAverage: Int { filter(\.countsInAverage).count }
 
     /// The weighted average with some made-up 100% grades added ("mi lenne, ha…").
-    func average(adding extra: [Int]) -> Double? {
+    func average(adding extra: [WhatIf]) -> Double? {
         guard !extra.isEmpty else { return average }
-        var sum = Double(extra.reduce(0, +)), weights = Double(extra.count)
+        var sum = extra.reduce(0.0) { $0 + Double($1.grade * $1.weight) / 100 }, weights = extra.reduce(0.0) { $0 + Double($1.weight) / 100 }
         for g in self where g.countsInAverage {
             let w = Double(g.sulySzazalekErteke!) / 100
             sum += Double(g.szamErtek!) * w
@@ -102,6 +102,13 @@ extension Double {
     var hu2: String { formatted(.number.precision(.fractionLength(2)).locale(Locale(identifier: "hu_HU"))) }
 }
 
+/// A "Mi lenne, ha…" grade and its weight in percent.
+struct WhatIf: Hashable {
+    var grade: Int
+    var weight = 100
+    init(_ grade: Int, weight: Int = 100) { self.grade = grade; self.weight = weight }
+}
+
 /// The line shown under a surprise grade once it's revealed: what it did to the subject average.
 struct RevealNote: Equatable {
     var text: String
@@ -111,6 +118,14 @@ struct RevealNote: Equatable {
 extension Ertekeles {
     /// `previous`: the subject's grades already visible before this one.
     func revealNote(previous: [Ertekeles], rounding r: Rounding) -> RevealNote? {
+        if ertekFajta.nev == "Szazalekos", let n = szamErtek {
+            // percentages: their own plain mean in the subject, apart from the 1–5 average
+            let before = previous.filter { $0.ertekFajta.nev == "Szazalekos" }.compactMap(\.szamErtek)
+            let good = (level ?? 0) >= 4
+            guard !before.isEmpty else { return RevealNote(text: "Eredmény: \(n)%", good: good) }
+            let pct = { (xs: [Int]) in Int((Double(xs.reduce(0, +)) / Double(xs.count)).rounded()) }
+            return RevealNote(text: "Átlag \(pct(before))% → \(pct(before + [n]))%", good: good)
+        }
         guard countsInAverage, let n = szamErtek else {
             if level == nil, let s = szovegesErtek { return RevealNote(text: s, good: false) }  // text grade
             return nil  // e.g. half-year grade without weight

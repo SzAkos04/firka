@@ -87,7 +87,8 @@ struct GradesView: View {
 struct SubjectView: View {
     let subject: Tantargy
     @Environment(AppStore.self) private var store
-    @State private var whatIf: [Int] = []  // "mi lenne ha" grades, weight 100%
+    @State private var whatIf: [WhatIf] = []  // "mi lenne ha" grades
+    @State private var weight = 100  // the weight the next one gets
 
     var body: some View {
         // from the store, so a refresh while the page is open shows up here too
@@ -114,22 +115,41 @@ struct SubjectView: View {
             }
 
             Section {
+                Picker("Súly", selection: $weight) {
+                    ForEach([50, 100, 200, 300], id: \.self) { Text("\($0)%") }
+                }
+                .pickerStyle(.segmented)
                 HStack {
                     ForEach(1...5, id: \.self) { n in
-                        Button { whatIf.append(n) } label: { GradeBadge(text: "\(n)", grade: n) }
+                        Button { whatIf.append(WhatIf(n, weight: weight)) } label: { GradeBadge(text: "\(n)", grade: n) }
                             .buttonStyle(.plain)
                             .frame(maxWidth: .infinity)
+                            .accessibilityIdentifier("whatIf\(n)")
                     }
                 }
                 if !whatIf.isEmpty {
                     HStack {
-                        Text("Ha kapnál: \(whatIf.map(String.init).joined(separator: ", "))").foregroundStyle(.secondary)
-                        Spacer()
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(Array(whatIf.enumerated()), id: \.offset) { i, w in
+                                    // tap one to take it back
+                                    Button { whatIf.remove(at: i) } label: {
+                                        Text(w.weight == 100 ? "\(w.grade)" : "\(w.grade) · \(w.weight)%")
+                                            .font(.subheadline.weight(.semibold))
+                                            .padding(.horizontal, 10).padding(.vertical, 4)
+                                            .background(Color.grade(w.grade).opacity(0.2), in: Capsule())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("\(w.grade), \(w.weight)%, törlés")
+                                    .accessibilityIdentifier("whatIfChip")
+                                }
+                            }
+                        }
                         AverageBadge(value: grades.average(adding: whatIf))
                     }
-                    Button("Törlés", role: .destructive) { whatIf = [] }
+                    Button("Mind törlése", role: .destructive) { whatIf = [] }
                 }
-            } header: { Text("Mi lenne, ha…") }
+            } header: { Text("Mi lenne, ha…") } footer: { Text("Érints meg egy jegyet a sorban, hogy kivedd.") }
 
             Section("Jegyek") {
                 ForEach(sorted) { g in NavigationLink(value: g) { GradeRow(grade: g) } }
@@ -142,9 +162,12 @@ struct SubjectView: View {
 struct AverageChart: View {
     let grades: [Ertekeles]
     var classAverage: Double?
+    @State private var selected: Date?
 
     var body: some View {
         let points = grades.runningAverage
+        // dragging along the chart: the point nearest the finger
+        let picked = selected.flatMap { s in points.min { abs($0.date.timeIntervalSince(s)) < abs($1.date.timeIntervalSince(s)) } }
         if points.count < 2 {
             Text("A grafikonhoz legalább két különböző napon kapott jegy kell.").font(.caption).foregroundStyle(.secondary)
         } else {
@@ -157,6 +180,16 @@ struct AverageChart: View {
                         .interpolationMethod(.monotone)
                         .foregroundStyle(LinearGradient(colors: [Color.grade(5), Color.grade(5).opacity(0)], startPoint: .top, endPoint: .bottom))
                 }
+                if let picked {
+                    RuleMark(x: .value("Dátum", picked.date))
+                        .foregroundStyle(.secondary.opacity(0.5))
+                        .annotation(position: .top, overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
+                            Text("\(picked.date.hu("MMMd")): \(picked.value.hu2)")
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(.regularMaterial, in: Capsule())
+                        }
+                }
                 if let classAverage {
                     RuleMark(y: .value("Osztályátlag", classAverage))
                         .foregroundStyle(.secondary)
@@ -166,6 +199,7 @@ struct AverageChart: View {
                         }
                 }
             }
+            .chartXSelection(value: $selected)
             .chartYScale(domain: 1...5)
             .chartYAxis { AxisMarks(values: [1, 2, 3, 4, 5]) }
             .chartXAxis {

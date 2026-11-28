@@ -22,7 +22,7 @@ struct HomeView: View {
         let data = store.data
         let (current, next, day, dayLessons) = HomeLogic.today(data.lessons, now: now, isHidden: HiddenLessons.shared.isHidden)
         let tests = HomeLogic.split(data.tests, today: now.startOfDay, date: \.datum).upcoming
-        let homework = HomeLogic.split(data.homework, today: now.startOfDay, date: \.hataridoDatuma).upcoming
+        let homework = HomeLogic.openHomework(data.homework, today: now.startOfDay)
         let recent = store.visibleGrades.sorted { $0.keszitesDatuma > $1.keszitesDatuma }.prefix(5)
 
         List {
@@ -190,7 +190,11 @@ struct HomeworkRow: View {
                 Text((hw.szoveg ?? "").strippingTags).font(.caption).foregroundStyle(.secondary).lineLimit(2)
             }
             Spacer()
-            Text("Határidő: \(hw.hataridoDatuma.hu("MMMd"))").font(.caption)
+            if hw.isMegoldva == true {
+                Label("Megoldva", systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("Határidő: \(hw.hataridoDatuma.hu("MMMd"))").font(.caption)
+            }
         }
     }
 }
@@ -220,7 +224,7 @@ struct LessonDetail: View {
                     Text("Ha az óra a valóságban nincs megtartva, de a KRÉTA mutatja.")
                 }
             }
-            if let uid = lesson.bejelentettSzamonkeresUid, let test = store.data.tests.first(where: { $0.uid == uid }) {
+            if let test = lesson.announcedTest(in: store.data.tests) {
                 Section("Számonkérés") { TestRow(test: test) }
             }
             if let uid = lesson.haziFeladatUid, let hw = store.data.homework.first(where: { $0.uid == uid }) {
@@ -265,6 +269,7 @@ struct HomeworkDetail: View {
             Section {
                 LabeledContent("Feladva", value: hw.feladasDatuma.hu("MMMMd EEEE"))
                 LabeledContent("Határidő", value: hw.hataridoDatuma.hu("MMMMd EEEE"))
+                if hw.isMegoldva == true { LabeledContent("Állapot", value: "Megoldva") }
                 if let t = hw.rogzitoTanarNeve { LabeledContent("Tanár", value: t.renamedTeacher) }
             }
             Section("Feladat") { HTMLText(html: hw.szoveg ?? "") }

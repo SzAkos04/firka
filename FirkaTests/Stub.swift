@@ -105,6 +105,7 @@ func lessonJSON(_ uid: String, start: Date, cancelled: Bool = false) -> String {
     return #"{"Uid":"\#(uid)","Datum":"\#(f.string(from: start.startOfDay))","KezdetIdopont":"\#(f.string(from: start))","VegIdopont":"\#(f.string(from: start.addingTimeInterval(2700)))","Nev":"matematika","Oraszam":1,"Tantargy":\#(subjectJSON),"Tipus":{"Nev":"TanitasiOra"},"Allapot":{"Nev":"\#(cancelled ? "Elmaradt" : "Naplozott")"}}"#
 }
 
-func inboxJSON(_ id: Int, kind: String = "BEERKEZETT", deleted: Bool = false, subject: String = "Tárgy", text: String = "Rövid") -> String {
-    #"{"azonosito":\#(id),"isToroltElem":\#(deleted),"tipus":{"kod":"\#(kind)"},"uzenet":{"azonosito":\#(id),"kuldesDatum":"2026-11-18T09:50:50","feladoNev":"Varga Szabolcs","targy":"\#(subject)","szoveg":"\#(text)"}}"#
+func inboxJSON(_ id: Int, kind: String = "BEERKEZETT", deleted: Bool = false, subject: String = "Tárgy", text: String = "Rövid",
+               read: Bool = true) -> String {
+    #"{"azonosito":\#(id),"isElolvasva":\#(read),"isToroltElem":\#(deleted),"tipus":{"kod":"\#(kind)"},"uzenet":{"azonosito":\#(id),"kuldesDatum":"2026-11-18T09:50:50","feladoNev":"Varga Szabolcs","targy":"\#(subject)","szoveg":"\#(text)"}}"#
 }

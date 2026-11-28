@@ -4,6 +4,17 @@ import Foundation
 extension Ora {
     /// In progress at `now` (a cancelled one never is).
     func isOn(at now: Date) -> Bool { kezdetIdopont <= now && vegIdopont > now && !isCancelled }
+
+    /// The test announced for this lesson: KRÉTA's link, or (when it's missing) one on the same day in the same
+    /// subject, for this lesson number if the test has one.
+    func announcedTest(in tests: [Szamonkeres]) -> Szamonkeres? {
+        if let uid = bejelentettSzamonkeresUid, let t = tests.first(where: { $0.uid == uid }) { return t }
+        guard let subject = tantargy?.uid else { return nil }
+        return tests.first {
+            $0.tantargy.uid == subject && $0.datum.startOfDay == kezdetIdopont.startOfDay
+                && ($0.orarendiOraOraszama == nil || $0.orarendiOraOraszama == oraszam)
+        }
+    }
 }
 
 enum HomeLogic {
@@ -27,10 +38,34 @@ enum HomeLogic {
     /// "Még N perc" on the lesson card.
     static func minutesLeft(until end: Date, now: Date) -> Int { Int((end.timeIntervalSince(now) / 60).rounded(.up)) }
 
+    /// The home screen's homework: upcoming, without the ones marked solved.
+    static func openHomework(_ items: [HaziFeladat], today: Date) -> [HaziFeladat] { split(items, today: today, date: \.hataridoDatuma).upcoming.filter { $0.isMegoldva != true } }
+
     /// Homework/tests: from today on soonest first, before today latest first.
     static func split<T>(_ items: [T], today: Date, date: (T) -> Date) -> (upcoming: [T], past: [T]) {
         (items.filter { date($0) >= today }.sorted { date($0) < date($1) },
          items.filter { date($0) < today }.sorted { date($0) > date($1) })
+    }
+}
+
+/// The absences screen's filter.
+enum AbsenceFilter: String, CaseIterable {
+    case all = "Mind", unexcused = "Igazolatlan", pending = "Igazolandó", subjects = "Tantárgyak"
+
+    func apply(_ all: [Mulasztas]) -> [Mulasztas] {
+        switch self {
+        case .unexcused: all.filter { $0.igazolasAllapota == "Igazolatlan" }
+        case .pending: all.filter { $0.igazolasAllapota != "Igazolt" && $0.igazolasAllapota != "Igazolatlan" }
+        case .all, .subjects: all
+        }
+    }
+
+    /// Per subject: absences (lateness apart, in minutes), the most missed first, to keep an eye on the limits.
+    static func bySubject(_ all: [Mulasztas]) -> [(subject: Tantargy, absences: Int, lateMinutes: Int)] {
+        Dictionary(grouping: all, by: \.tantargy.uid).values.map { items in
+            (items[0].tantargy, items.filter { !$0.isLate }.count, items.filter(\.isLate).reduce(0) { $0 + ($1.kesesPercben ?? 0) })
+        }
+        .sorted { ($0.absences, $1.subject.name) > ($1.absences, $0.subject.name) }
     }
 }
 

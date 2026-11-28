@@ -48,6 +48,16 @@ extension Global {
             await #expect(throws: (any Error).self) { try await ServerPush.upload(p, to: self.base) }
         }
 
+        @Test("the test button: a POST to /api/test; a refusal (ntfy down: 502) is an error")
+        func sendTest() async throws {
+            Stub.start { _ in .init(status: 204, body: "") }
+            try await ServerPush.sendTest(to: base)
+            let r = try #require(Stub.requests.last)
+            #expect(r.httpMethod == "POST" && r.url?.absoluteString == "https://push.test:8446/api/test")
+            Stub.start { _ in .init(status: 502, body: "") }
+            await #expect(throws: (any Error).self) { try await ServerPush.sendTest(to: self.base) }
+        }
+
         @Test("the status: when it last asked KRÉTA, with what result, and whether it is signed in")
         func status() async throws {
             Stub.start { _ in .init(body: #"{"lastPoll":"2026-11-26T21:39:32.027Z","result":"ok","loggedIn":true}"#) }
@@ -73,5 +83,6 @@ struct AppLinkTests {
         #expect(AppTab(url: URL(string: "firka://home")!) == .home)
         #expect(AppTab(url: URL(string: "firka://nope")!) == nil)
         #expect(AppTab(url: URL(string: "https://grades")!) == nil)
+        #expect(AppTab(url: Shared.timetableLink) == .timetable, "a tap on the widget or the Live Activity")
     }
 }

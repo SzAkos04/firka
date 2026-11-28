@@ -160,6 +160,7 @@ struct PostaladaElem: Codable, Identifiable, Hashable {
     struct Tipus: Codable, Hashable { var kod: String? }
 
     var azonosito: Int
+    var isElolvasva: Bool?
     var isToroltElem: Bool?
     var tipus: Tipus?
     var uzenet: Uzenet

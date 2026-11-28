@@ -285,11 +285,21 @@ extension Global {
             var c = Snapshot()
             c.updated = Date()
             let s = store(cache: c)
-            #expect(await s.fullMessage("p1") == "Teljes szöveg")
-            #expect(await s.fullMessage("p1") == "Teljes szöveg")
+            #expect(try await s.fullMessage("p1") == "Teljes szöveg")
+            #expect(try await s.fullMessage("p1") == "Teljes szöveg")
             #expect(Stub.paths() == ["/api/v1/kommunikacio/postaladaelemek/1"])
             #expect(Snapshot.load()?.inboxBodies?["1"] == "Teljes szöveg")
-            #expect(await s.fullMessage("n5") == nil, "notice-board items have their full text already")
+            #expect(try await s.fullMessage("n5") == nil, "notice-board items have their full text already")
+        }
+
+        @Test("a message's full text that can't be downloaded is an error to show, not silence")
+        func fullMessageFails() async throws {
+            var c = Snapshot()
+            c.updated = Date()
+            var fake = FakeKreta()
+            fake.fail = ["uzenet"]
+            let s = store(cache: c, fake)
+            await #expect(throws: (any Error).self) { try await s.fullMessage("p1") }
         }
     }
 }
