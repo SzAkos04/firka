@@ -12,6 +12,28 @@ Confidence marks used below:
 - **[ref]** from the open-source references (other universities' Neptun, same vendor software), not seen at BME.
 - **[?]** unknown: must be captured from a real BME login first (section 5).
 
+## Status (2026-11-28): built on the `neptun` branch, not verified on real data
+
+Done, with tests (192 unit, 25 UI, contrast audits light and dark; the phone and `ios` untouched):
+
+- The app runs on its own models (`Domain.swift`); KRÉTA maps onto them (`KretaMapping.swift`, `KretaProvider.swift`);
+  the store talks only to a `SchoolProvider`. Cache `snapshot-v2.json` (the old one is dropped, one sync refills it).
+- Any university: `Institution.discover` (address → API), `Firka/Institutions.json` (34 checked, from
+  `scripts/neptun-institutions.mjs`), or a typed address.
+- `NeptunClient`: Bearer + cookies, renewal via `Account/GetNewTokens`, 401 handling, session in the Keychain;
+  login on the university's own page, session taken over from it (`NeptunLoginView.swift`).
+- `NeptunProvider`: terms, the current term's courses with credits and results, classes, messages.
+- Credit averages (`CreditAverages`), term picker, Vizsgák tab, `FIRKA_DEMO=neptun`.
+- `scripts/neptun-check.mjs`: BME's public client still has every endpoint and token key used (checked today).
+
+Left for when a real login exists (see section 5), each a fixture first, then the code:
+
+- Response bodies: every Neptun type marked UNVERIFIED in `Neptun.swift` (calendar times and titles above all).
+- Exams are not downloaded yet (`ExamRegisteredExams`, `ExamResults` shapes unknown): the tab shows only the demo's.
+- A message's full text (`Messages/{id}/Posts`), the student's name (`Account/GetUserInfo`), attachments.
+- How long the session can be renewed (background refresh; whether reauth needs the 2FA code every time).
+- Merging `neptun` into `ios` only after that, on the owner's word.
+
 ## 0. The Firka in daily use stays untouched
 
 The owner uses today's KRÉTA Firka every day and stays in secondary school for about a year, so nothing of this may
@@ -25,7 +47,7 @@ reach the phone or slow the KRÉTA app down, and no university data exists to te
   it now and then so it doesn't drift; it is merged back into `ios` only when the owner says so (at the start of
   university, after testing on real data).
 - Nothing in the KRÉTA path changes on `ios` until then: no refactor, no new cache format, no new settings.
-- BME can change its client within a year: before any real use, `scripts/neptun-check.sh` (no login) re-reads the
+- BME can change its client within a year: before any real use, `scripts/neptun-check.mjs` (no login) re-reads the
   public config and bundle and lists which of the endpoints in section 3 are still there.
 
 ## 1. What BME runs

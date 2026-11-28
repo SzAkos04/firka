@@ -3,7 +3,7 @@ import Foundation
 // Neptun (universities), NEPTUN_PLAN.md. What BME's own web client does is followed exactly (Bearer token plus
 // cookies, renewal through Account/GetNewTokens with an empty body 30 s before expiry, answers wrapped in `data`).
 // Response *bodies* come from the open-source references and are NOT verified at BME yet: every type below marked
-// UNVERIFIED must be checked against a real capture before a release (scripts/neptun-check.sh, section 5 of the plan).
+// UNVERIFIED must be checked against a real capture before a release (scripts/neptun-check.mjs, section 5 of the plan).
 
 /// A logged-in Neptun session, kept in the Keychain. No password: the user logs in on Neptun's own page.
 struct NeptunSession: Codable, Equatable {
