@@ -122,6 +122,23 @@ extension Global {
             #expect(Stub.paths().filter { $0 == "/connect/token" }.count == 1)
         }
 
+        @Test("two requests turned away with the same token: one renewal, even when the second 401 comes after it")
+        func late401() async throws {
+            testToken().save()
+            let retried = { Stub.requests.contains { $0.url?.path.hasSuffix("Ertekelesek") == true && $0.value(forHTTPHeaderField: "authorization") == "Bearer acc2" } }
+            Stub.start { r in
+                if r.url?.path == "/connect/token" { return .init(body: grantJSON(access: "acc2")) }
+                if r.value(forHTTPHeaderField: "authorization") != "Bearer acc1" { return .init(body: "[]") }
+                // this 401 comes back only after the other request has renewed and retried
+                return .init(status: 401, body: "", until: r.url!.path.hasSuffix("Mulasztasok") ? retried : nil)
+            }
+            let c = KretaClient(token: testToken())
+            async let x: [Ertekeles] = c.list("Ertekelesek")
+            async let y: [Ertekeles] = c.list("Mulasztasok")
+            _ = try await (x, y)
+            #expect(Stub.paths().filter { $0 == "/connect/token" }.count == 1)
+        }
+
         @Test("a token renewed elsewhere (the background task) is used without another renewal")
         func renewedElsewhere() async throws {
             testToken(access: "fromBackground", refresh: "ref9").save()

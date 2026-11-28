@@ -37,8 +37,10 @@ extension LessonActivityAttributes.ContentState {
     /// Today's lessons that take place (for the passive view's span and count).
     var held: [WidgetLesson] { lessons.filter { !$0.cancelled } }
 
-    /// Same headline and lessons; `since` alone changing needs no update.
-    func sameContent(as other: Self) -> Bool { lessons == other.lessons && focus == other.focus && light == other.light }
+    /// Same headline and lessons; `since` alone changing needs no update, unless the break before the headline lesson ended.
+    func sameContent(as other: Self) -> Bool {
+        lessons == other.lessons && focus == other.focus && inLesson == other.inLesson && light == other.light
+    }
 }
 
 extension WidgetLesson {

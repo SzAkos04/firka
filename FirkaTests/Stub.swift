@@ -8,7 +8,8 @@ import Testing
 /// A fake KRÉTA (and push.test, a fake of server/push): every request to *.e-kreta.hu goes to `Stub.route` instead of the internet.
 /// URLSession.shared picks up registered protocol classes, so the app's code runs unchanged.
 final class Stub: URLProtocol {
-    struct Reply { var status = 200; var body = "[]" }
+    /// `until`: hold the answer back (off the stub's thread, so other requests go on) until it says true, at most 3 s.
+    struct Reply { var status = 200; var body = "[]"; var until: (() -> Bool)? = nil }
 
     nonisolated(unsafe) static var route: (URLRequest) -> Reply = { _ in Reply(status: 404, body: "") }
     nonisolated(unsafe) private static var log: [URLRequest] = []
@@ -37,10 +38,17 @@ final class Stub: URLProtocol {
         var r = request
         if r.httpBody == nil, let stream = r.httpBodyStream { r.httpBody = Data(reading: stream) }
         let reply = Stub.lock.withLock { Stub.log.append(r); return Stub.route }(r)
-        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: r.url!, statusCode: reply.status, httpVersion: nil, headerFields: nil)!,
-                            cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data(reply.body.utf8))
-        client?.urlProtocolDidFinishLoading(self)
+        let answer = { [self] in
+            client?.urlProtocol(self, didReceive: HTTPURLResponse(url: r.url!, statusCode: reply.status, httpVersion: nil, headerFields: nil)!,
+                                cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data(reply.body.utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+        guard let until = reply.until else { return answer() }
+        DispatchQueue.global().async {
+            for _ in 0..<300 where !until() { Thread.sleep(forTimeInterval: 0.01) }
+            answer()
+        }
     }
 }
 

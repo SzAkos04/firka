@@ -86,6 +86,8 @@ struct TimetableTests {
         #expect(!inBreak.inLesson && inBreak.focused.subject == "C" && inBreak.staleDate == budapest(2026, 11, 23, 9, 50))
         #expect(LessonActivityAttributes.ContentState(lessons: day, now: budapest(2026, 11, 23, 12)) == nil)
         #expect(inLesson.sameContent(as: LessonActivityAttributes.ContentState(lessons: day, now: budapest(2026, 11, 23, 8, 20))!))
+        let cStarted = LessonActivityAttributes.ContentState(lessons: day, now: budapest(2026, 11, 23, 9, 55))!
+        #expect(cStarted.focus == inBreak.focus && !inBreak.sameContent(as: cStarted), "the break before C ending in C is an update")
     }
 
     @Test("Live Activity: what comes next (cancelled ones skipped); a break only once a lesson was held today")

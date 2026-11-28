@@ -81,12 +81,13 @@ async function fetchAll(s, now, k) {
     soft(list('FaliujsagElemek')), soft(list('Feljegyzesek')),
     soft(s.get(`${k.inbox}/api/v1/kommunikacio/postaladaelemek/sajat`)),
   ])
-  const messages = notices && notes && inbox && [
-    ...notices.map((n) => ({ id: 'n' + n.Uid, title: n.Cim ?? 'Üzenet' })),
-    ...notes.map((n) => ({ id: 'f' + n.Uid, title: n.Cim ?? n.Tipus?.Leiras ?? 'Feljegyzés' })),
-    ...inbox.filter((p) => p.tipus?.kod === 'BEERKEZETT' && p.isToroltElem !== true)
+  // three sources, each on its own: a failed one is null (the inbox lives on another host and fails apart)
+  const messages = {
+    n: notices?.map((n) => ({ id: 'n' + n.Uid, title: n.Cim ?? 'Üzenet' })),
+    f: notes?.map((n) => ({ id: 'f' + n.Uid, title: n.Cim ?? n.Tipus?.Leiras ?? 'Feljegyzés' })),
+    p: inbox?.filter((p) => p.tipus?.kod === 'BEERKEZETT' && p.isToroltElem !== true)
       .map((p) => ({ id: 'p' + p.azonosito, title: p.uzenet?.targy ?? 'Üzenet' })),
-  ]
+  }
   return { grades, lessons: [...w1, ...w2], absences, homework, tests, messages }
 }
 
@@ -148,14 +149,21 @@ export function changes(old, d, now, prefs = {}) {
     add('absences', 'Új hiányzás/késés', (n) => `${n} új hiányzás/késés`,
       fresh('absences', d.absences).map((a) => `${subject(a.Tantargy.Nev)}: ${absence(a)}`))
   }
+  // Messages by source (the id's first letter): a source that failed keeps its ids; one never loaded before is a baseline.
+  const loaded = Object.keys(d.messages).filter((src) => d.messages[src])
+  const knew = old?.sources ?? (old?.messages ? ['n', 'f', 'p'] : [])
+  const msgs = loaded.flatMap((src) => d.messages[src])
   if (on('notifyMessages')) {
-    add('messages', 'Új üzenet', (n) => `${n} új üzenet`, fresh('messages', d.messages, (m) => m.id).map((m) => m.title))
+    add('messages', 'Új üzenet', (n) => `${n} új üzenet`,
+      fresh('messages', msgs.filter((m) => knew.includes(m.id[0])), (m) => m.id).map((m) => m.title))
   }
 
   const ids = (kind, items, idOf = (x) => x.Uid) => (items ? items.map(idOf) : old?.[kind] ?? null)
   const state = {
     grades: ids('grades', d.grades), homework: ids('homework', d.homework), tests: ids('tests', d.tests),
-    absences: ids('absences', d.absences), messages: ids('messages', d.messages, (m) => m.id),
+    absences: ids('absences', d.absences),
+    messages: old?.messages || loaded.length ? [...msgs.map((m) => m.id), ...(old?.messages ?? []).filter((id) => !loaded.includes(id[0]))] : null,
+    sources: [...new Set([...knew, ...loaded])],
     // like the app: no lesson alerts until a timetable with lessons has been seen
     lessons: d.lessons.length ? d.lessons.length : old?.lessons ?? 0,
     cancelled: d.lessons.filter(cancelled).map((o) => o.Uid),

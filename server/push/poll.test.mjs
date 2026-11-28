@@ -16,7 +16,7 @@ const lesson = (uid, start, extra = {}) => ({
   Uid: uid, KezdetIdopont: new Date(start).toISOString(), VegIdopont: new Date(+new Date(start) + 45 * 60e3).toISOString(),
   Tantargy: subj('matematika'), Tipus: { Nev: 'OrarendiOra' }, ...extra,
 })
-const data = (o = {}) => ({ grades: [], lessons: [], absences: [], homework: [], tests: [], messages: [], ...o })
+const data = (o = {}) => ({ grades: [], lessons: [], absences: [], homework: [], tests: [], messages: { n: [], f: [], p: [] }, ...o })
 const lines = (alerts) => alerts.flatMap((a) => [a.title, ...a.lines])
 
 test('the first poll sets the baseline and sends nothing', () => {
@@ -34,6 +34,25 @@ test('a new grade: the value stays hidden unless surprise grades are off, like i
   assert.deepEqual(lines(changes(state, two, now, { surprise: false }).alerts), ['2 új jegy érkezett', 'Irodalom: 5', 'Fizika: 80%'])
   assert.deepEqual(lines(changes(state, d, now, { kinds: { notifyGrades: false } }).alerts), [])
   assert.deepEqual(lines(changes(state, d, now, { subjects: { Irodalom: 'Iroda' } }).alerts), ['Új jegy érkezett', 'Iroda: új jegy'])
+})
+
+test('messages: one failing source (the inbox has its own host) holds back neither the others nor its ids', () => {
+  const msg = (id) => ({ id, title: `Cím ${id}` })
+  const { state } = changes(null, data({ messages: { n: [msg('n1')], f: [], p: [msg('p1')] } }), now)
+  const r = changes(state, data({ messages: { n: [msg('n1'), msg('n2')], f: [], p: null } }), now)
+  assert.deepEqual(lines(r.alerts), ['Új üzenet', 'Cím n2'])
+  assert.deepEqual(r.state.messages.sort(), ['n1', 'n2', 'p1'])
+  assert.deepEqual(lines(changes(r.state, data({ messages: { n: [msg('n1'), msg('n2')], f: [], p: [msg('p1'), msg('p2')] } }), now).alerts),
+    ['Új üzenet', 'Cím p2'])
+})
+
+test('messages: a source that has never loaded starts as a baseline when it first does, not as years of messages', () => {
+  const msg = (id) => ({ id, title: `Cím ${id}` })
+  const { state } = changes(null, data({ messages: { n: [msg('n1')], f: [], p: null } }), now)
+  const r = changes(state, data({ messages: { n: [msg('n1')], f: [], p: [msg('p1'), msg('p2')] } }), now)
+  assert.deepEqual(r.alerts, [])
+  assert.deepEqual(lines(changes(r.state, data({ messages: { n: [msg('n1')], f: [], p: [msg('p1'), msg('p2'), msg('p3')] } }), now).alerts),
+    ['Új üzenet', 'Cím p3'])
 })
 
 test('an empty list and then a full one is a new baseline, not a flood', () => {

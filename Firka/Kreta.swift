@@ -414,7 +414,10 @@ actor KretaClient {
 
     init(token: Token) { self.token = token }
 
-    private func freshToken(force: Bool = false) async throws -> Token {
+    /// - turnedAway: the token a 401 came back for. Renewed meanwhile (another request of ours did it): use that.
+    private func freshToken(turnedAway: Token? = nil) async throws -> Token {
+        if let turnedAway, token.accessToken != turnedAway.accessToken { return token }
+        let force = turnedAway != nil
         if !force && token.expiry > Date() { return token }
         token = try await TokenRefresher.shared.fresh(token, force: force)
         return token
@@ -466,8 +469,9 @@ actor KretaClient {
 
     /// Any KRÉTA URL with the user's token (also the messaging service and file downloads).
     func raw(_ url: URL, timeout: TimeInterval = 20) async throws -> Data {
+        var turnedAway: Token?
         for attempt in 0..<2 {
-            let t = try await freshToken(force: attempt > 0)
+            let t = try await freshToken(turnedAway: turnedAway)
             var req = URLRequest(url: url, timeoutInterval: timeout)
             req.setValue("*/*", forHTTPHeaderField: "accept")
             req.setValue(Kreta.userAgent, forHTTPHeaderField: "user-agent")
@@ -476,7 +480,7 @@ actor KretaClient {
             let (data, resp) = try await URLSession.shared.data(for: req)
             let status = (resp as? HTTPURLResponse)?.statusCode ?? 0
             if status == 401 {
-                if attempt == 0 { continue }  // token revoked early: refresh once and retry
+                if attempt == 0 { turnedAway = t; continue }  // token revoked early: refresh once and retry
                 throw KretaError.reauth
             }
             guard (200..<300).contains(status) else {

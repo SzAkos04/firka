@@ -107,7 +107,7 @@ struct SoftFetchTests {
     @Test("a failing optional endpoint keeps the cached list")
     func keepsCache() async throws {
         #expect(try await Snapshot.soft("x", [1, 2]) { throw Flaky() } == [1, 2])
-        #expect(try await Snapshot.soft("x", nil as [Int]?) { throw Flaky() } == [])
+        #expect(try await Snapshot.soft("x", nil as [Int]?) { throw Flaky() } == nil)
         #expect(try await Snapshot.soft("x", [1]) { [3] } == [3])
     }
 

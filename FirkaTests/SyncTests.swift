@@ -135,6 +135,19 @@ extension Global {
             #expect(s.data.grades.count == 2)
         }
 
+        @Test("an inbox that never loaded stays unknown when it fails, so its first good list is a baseline, not 50 alerts")
+        func inboxNeverLoaded() async throws {
+            var old = Snapshot()
+            old.studentName = "Teszt Elek"
+            old.updated = Date().addingTimeInterval(-3600)
+            var fake = FakeKreta()
+            fake.fail = ["postaladaelemek"]
+            let s = store(cache: old, fake)
+            await s.refresh()
+            #expect(s.error == nil)
+            #expect(s.data.inbox == nil)
+        }
+
         @Test("grades or the timetable failing fails the sync and keeps everything as it was", arguments: ["Ertekelesek", "OrarendElemek", "TanuloAdatlap"])
         func hardFailure(_ endpoint: String) async {
             var old = Snapshot()

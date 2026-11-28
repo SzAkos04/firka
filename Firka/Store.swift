@@ -73,13 +73,14 @@ struct Snapshot: Codable {
         async let grades: [Ertekeles] = c.list("Ertekelesek")
         async let w1 = c.week(week)
         async let w2 = c.week(week.adding(days: 7))
-        async let absences = soft("Mulasztasok", old?.absences) { try await c.list("Mulasztasok") }
-        async let homework = soft("HaziFeladatok", old?.homework) { try await c.list("HaziFeladatok", from: schoolStart) }
-        async let tests = soft("BejelentettSzamonkeresek", old?.tests) { try await c.list("BejelentettSzamonkeresek") }
-        async let notices = soft("FaliujsagElemek", old?.notices) { try await c.list("FaliujsagElemek") }
-        async let notes = soft("Feljegyzesek", old?.notes) { try await c.list("Feljegyzesek") }
+        async let absences = soft("Mulasztasok", old?.absences ?? []) { try await c.list("Mulasztasok") }
+        async let homework = soft("HaziFeladatok", old?.homework ?? []) { try await c.list("HaziFeladatok", from: schoolStart) }
+        async let tests = soft("BejelentettSzamonkeresek", old?.tests ?? []) { try await c.list("BejelentettSzamonkeresek") }
+        async let notices = soft("FaliujsagElemek", old?.notices ?? []) { try await c.list("FaliujsagElemek") }
+        async let notes = soft("Feljegyzesek", old?.notes ?? []) { try await c.list("Feljegyzesek") }
         async let classAvg = classAverages(c)
-        async let inbox = soft("postaladaelemek", old?.inbox) {
+        // nil until it first loads, so the first good list is a baseline for the notifications (Notifier.changes)
+        async let inbox: [PostaladaElem]? = soft("postaladaelemek", old?.inbox) {
             let all: [PostaladaElem] = try await c.list(fullURL: "https://eugyintezes.e-kreta.hu/api/v1/kommunikacio/postaladaelemek/sajat")
             return all.filter { $0.tipus?.kod == "BEERKEZETT" && $0.isToroltElem != true }
         }
@@ -93,7 +94,7 @@ struct Snapshot: Codable {
                                   updated: now)
     }
 
-    static func soft<T>(_ name: String, _ fallback: [T]?, _ op: () async throws -> [T]) async throws -> [T] {
+    static func soft<T>(_ name: String, _ fallback: T, _ op: () async throws -> T) async throws -> T {
         do {
             return try await op()
         } catch KretaError.reauth {
@@ -102,7 +103,7 @@ struct Snapshot: Codable {
             throw CancellationError()
         } catch {
             log.error("\(name, privacy: .public) failed, keeping cached: \(String(describing: error), privacy: .public)")
-            return fallback ?? []
+            return fallback
         }
     }
 
