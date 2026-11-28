@@ -18,13 +18,16 @@ struct UniversityGradesView: View {
             List {
                 NewGradesSection()
                 Section {
-                    HStack(spacing: 8) {
-                        UniStat(value: avg.average?.hu2 ?? "–", label: "Súlyozott átlag")
-                        UniStat(value: avg.creditIndex.hu2, label: "Kreditindex")
-                        UniStat(value: avg.correctedCreditIndex.hu2, label: "Korrigált kreditindex")
+                    // like the KRÉTA grades screen: the average as a badge, the rest as rows
+                    HStack(spacing: 12) {
+                        AverageBadge(value: avg.average, size: 56)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Súlyozott átlag").font(.headline)
+                            Text("\(avg.completed) kredit alapján").font(.subheadline).foregroundStyle(.secondary)
+                        }
                     }
-                    .listRowInsets(EdgeInsets())
-                    .listRowBackground(Color.clear)
+                    LabeledContent("Kreditindex", value: avg.creditIndex.hu2)
+                    LabeledContent("Korrigált kreditindex", value: avg.correctedCreditIndex.hu2)
                     LabeledContent("Teljesített kredit", value: "\(avg.completed) / \(avg.taken)")
                 } header: {
                     if data.semesters.count > 1, let picked {
@@ -65,21 +68,6 @@ struct UniversityGradesView: View {
                 other = await store.courses(semester: picked)
             }
         }
-    }
-}
-
-private struct UniStat: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(value).font(.title3.bold().monospacedDigit())
-            Text(label).font(.caption2).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center).minimumScaleFactor(0.8)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
