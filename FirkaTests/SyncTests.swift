@@ -41,6 +41,19 @@ struct FakeKreta {
     }
 }
 
+/// A school system of the tests' own: the store must work with any provider, not only KRÉTA.
+final class FakeProvider: SchoolProvider, @unchecked Sendable {
+    var snapshot = Snapshot()
+    var weeks: [Date: [Lesson]] = [:]
+    var bodies: [String: String] = [:]
+    var fetches = 0
+
+    func fetch(old: Snapshot?) async throws -> Snapshot { fetches += 1; return snapshot }
+    func week(_ start: Date) async throws -> [Lesson] { weeks[start] ?? [] }
+    func fullMessage(_ id: String) async throws -> String? { bodies[id] }
+    func download(_ a: Firka.Attachment) async throws -> Data { Data(a.name.utf8) }
+}
+
 extension Global {
     /// Syncing, logging in and out, and the app state around it, against the fake KRÉTA.
     @MainActor @Suite("Sync and app state", .serialized)
@@ -224,6 +237,24 @@ extension Global {
             await s.signedIn(testToken(access: "other", user: "masik"))
             #expect(s.data.grades.isEmpty && Snapshot.load() == nil)
             #expect(Token.load()?.username == "masik" && s.loggedIn && !s.needsReauth)
+        }
+
+        @Test("the store works with any school system's provider: sync, other weeks, message texts")
+        func anyProvider() async throws {
+            let p = FakeProvider()
+            p.snapshot.studentName = "Egyetemista Elek"
+            p.snapshot.lessons = [lesson("x", day: Date().startOfWeek, from: 600)]
+            p.snapshot.messageList = [Message(id: "m1", title: "Vizsga", date: .now, html: "eleje")]
+            p.bodies["m1"] = "teljes szöveg"
+            let far = Date().startOfWeek.adding(days: 21)
+            p.weeks[far] = [lesson("far", day: far, from: 600)]
+            let s = store()
+            s.provider = p
+            await s.refresh()
+            #expect(p.fetches == 1 && s.data.studentName == "Egyetemista Elek" && s.data.lessons.map(\.id) == ["x"])
+            #expect(await s.lessons(week: far).map(\.id) == ["far"])
+            #expect(try await s.fullMessage("m1") == "teljes szöveg")
+            #expect(s.data.messages.first?.html == "teljes szöveg")
         }
 
         @Test("timetable weeks: this and next week from the cache, others downloaded once")

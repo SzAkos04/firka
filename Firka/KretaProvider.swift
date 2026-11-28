@@ -2,6 +2,26 @@ import Foundation
 
 // Downloading from KRÉTA and turning it into the app's models (KretaMapping.swift).
 
+/// KRÉTA as a school system for the store.
+final class KretaProvider: SchoolProvider {
+    let client: KretaClient
+    init(client: KretaClient) { self.client = client }
+    convenience init(token: Token) { self.init(client: KretaClient(token: token)) }
+
+    func fetch(old: Snapshot?) async throws -> Snapshot { try await Snapshot.fetch(client, old: old) }
+
+    func week(_ start: Date) async throws -> [Lesson] { try await client.week(start).map(Lesson.init(kreta:)) }
+
+    /// Teacher messages (p…) come shortened in the list; the rest are whole already.
+    func fullMessage(_ id: String) async throws -> String? {
+        guard id.hasPrefix("p"), let n = Int(id.dropFirst()),
+              let url = URL(string: "https://eugyintezes.e-kreta.hu/api/v1/kommunikacio/postaladaelemek/\(n)") else { return nil }
+        return try Kreta.apiDecoder.decode(PostaladaElem.self, from: try await client.raw(url)).uzenet.szoveg ?? ""
+    }
+
+    func download(_ a: Attachment) async throws -> Data { try await client.raw(a.url, timeout: 120) }
+}
+
 extension Snapshot {
     /// Downloads everything from KRÉTA in parallel. Student, grades and timetable must succeed;
     /// the rest fall back to `old` so one flaky endpoint doesn't block the whole refresh.

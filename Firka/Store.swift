@@ -74,23 +74,21 @@ final class AppStore {
     var loading = false
     var error: String?
     private var weeks: [Date: [Lesson]] = [:]
-    private var client: KretaClient?
-    var kretaClient: KretaClient? { client }
+    /// The logged-in school system; internal so tests can plug in their own.
+    var provider: SchoolProvider?
 
     /// Full text of a teacher message: downloaded once, then kept with the cached data.
     /// nil: nothing to download (not a teacher message, or the demo). A failed download throws.
     func fullMessage(_ id: String) async throws -> String? {
-        guard id.hasPrefix("p"), let n = Int(id.dropFirst()) else { return nil }
         if let body = data.messageBodies?[id] { return body }
-        guard let client, let url = URL(string: "https://eugyintezes.e-kreta.hu/api/v1/kommunikacio/postaladaelemek/\(n)") else { return nil }
+        guard let provider else { return nil }
         do {
-            let full = try Kreta.apiDecoder.decode(PostaladaElem.self, from: try await client.raw(url))
-            let body = full.uzenet.szoveg ?? ""
+            guard let body = try await provider.fullMessage(id) else { return nil }
             data.messageBodies = (data.messageBodies ?? [:]).merging([id: body]) { $1 }
             data.save(widget: false)
             return body
         } catch {
-            log.error("message \(n, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            log.error("message \(id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
             throw error
         }
     }
@@ -173,11 +171,11 @@ final class AppStore {
             UserDefaults.standard.removeObject(forKey: Pref.timetableMonth)
         }
         #endif
-        client = token.map(KretaClient.init)
+        provider = token.map(KretaProvider.init(token:))
         loggedIn = token != nil || UserDefaults.standard.bool(forKey: Pref.demo)
         seedSeenGrades()
         #if DEBUG
-        if env["FIRKA_PROBE"] != nil, let client { Task { await DebugProbe.run(client) } }
+        if env["FIRKA_PROBE"] != nil, let p = provider as? KretaProvider { Task { await DebugProbe.run(p.client) } }
         if env["FIRKA_DEMO"] != nil { startDemo() }
         if env["FIRKA_DEMO"] == "noClassAverages" { data.classAverages = nil; data.save() }
         if env["FIRKA_DEMO"] == "reportCard" {
@@ -213,7 +211,7 @@ final class AppStore {
         }
         token.save()
         UserDefaults.standard.set(false, forKey: Pref.demo)
-        client = KretaClient(token: token)
+        provider = KretaProvider(token: token)
         needsReauth = false
         loggedIn = true
         await refresh()
@@ -230,7 +228,7 @@ final class AppStore {
         Token.delete()
         BGTaskScheduler.shared.cancelAllTaskRequests()
         UserDefaults.standard.set(false, forKey: Pref.demo)
-        client = nil
+        provider = nil
         clearAccountData()
         loggedIn = false
         Task { await LessonLive.endAll() }
@@ -249,12 +247,12 @@ final class AppStore {
     }
 
     func refresh() async {
-        guard let client, !loading else { return }
+        guard let provider, !loading else { return }
         loading = true
         defer { loading = false }
         do {
-            var new = try await Snapshot.fetch(client, old: data)
-            guard self.client === client else { return }  // logged out (or switched) while downloading
+            var new = try await provider.fetch(old: data)
+            guard self.provider === provider else { return }  // logged out (or switched) while downloading
             log.info("refresh ok: \(new.grades.count, privacy: .public) grades, \(new.lessons.count, privacy: .public) lessons, \(new.absences.count, privacy: .public) absences")
             new.keepBodies(from: data)  // a message opened while it downloaded
             data = new
@@ -264,10 +262,10 @@ final class AppStore {
             weeks = [:]
             error = nil
         } catch KretaError.reauth {
-            if self.client === client { needsReauth = true }
+            if self.provider === provider { needsReauth = true }
         } catch where isCancellation(error) {
         } catch {
-            guard self.client === client else { return }
+            guard self.provider === provider else { return }
             log.error("refresh failed: \(String(describing: error), privacy: .public)")
             self.error = (error as? LocalizedError)?.errorDescription ?? "Nem sikerült frissíteni (nincs internet?)."
         }
@@ -290,9 +288,9 @@ final class AppStore {
         let cached = data.lessons.filter { $0.start >= week && $0.start < end }
         // the snapshot holds its own sync's week and the next: those come from it, whatever today is
         let synced = data.updated?.startOfWeek
-        guard let client, week != synced, week != synced?.adding(days: 7) else { return cached }
+        guard let provider, week != synced, week != synced?.adding(days: 7) else { return cached }
         do {
-            let w = try await client.week(week).map(Lesson.init(kreta:))
+            let w = try await provider.week(week)
             weeks[week] = w
             if error == Self.timetableError { error = nil }
             return w
@@ -462,7 +460,7 @@ enum Background {
         UserDefaults.standard.set(Date(), forKey: Pref.lastBackgroundRun)  // shown in Settings: does iOS run us at all?
         guard let token = Token.load(), let old = Snapshot.load() else { return false }
         do {
-            var new = try await Snapshot.fetch(KretaClient(token: token), old: old)
+            var new = try await KretaProvider(token: token).fetch(old: old)
             Notifier.post(old: old, new: new)
             new.keepBodies(from: Snapshot.load())  // the app may have saved a message text meanwhile
             new.save()

@@ -79,8 +79,8 @@ extension AppStore {
             .appendingPathComponent("attachments/\(a.id)")
         let file = dir.appendingPathComponent(a.safeFileName)
         if FileManager.default.fileExists(atPath: file.path) { return file }
-        guard let client = kretaClient else { throw KretaError.reauth }
-        let data = try await client.raw(a.url, timeout: 120)
+        guard let provider else { throw KretaError.reauth }
+        let data = try await provider.download(a)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try data.write(to: file, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         return file
