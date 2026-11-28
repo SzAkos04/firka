@@ -8,7 +8,10 @@ struct LessonRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(lesson.number.map(String.init) ?? "")
+            Group {
+                // a university class has no lesson number: an icon instead of an empty circle
+                if let n = lesson.number { Text("\(n)") } else { Image(systemName: "book.closed").font(.caption) }
+            }
                 .font(.headline.monospacedDigit())
                 .frame(width: 28, height: 28)
                 .background((active ? Color.accentColor : Color.secondary).opacity(0.18), in: Circle())

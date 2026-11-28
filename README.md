@@ -22,6 +22,20 @@ Demo data (debug builds: Demó mód on the login screen, or `FIRKA_DEMO=1`), iPh
   <img src="docs/screenshots/home-dark.png" width="200" alt="Kezdőlap in dark mode">
 </p>
 
+### University (Neptun)
+
+On this branch only, not yet tested on real data (see `NEPTUN_PLAN.md`). Demo data: `FIRKA_DEMO=neptun`.
+
+<p>
+  <img src="docs/screenshots/neptun-login.png" width="200" alt="Login: KRÉTA (középiskola) or Egyetem (Neptun)">
+  <img src="docs/screenshots/neptun-picker.png" width="200" alt="Choosing a university: a checked list with search, or a typed Neptun address">
+  <img src="docs/screenshots/neptun-grades.png" width="200" alt="Jegyek: súlyozott átlag, kreditindex, korrigált kreditindex, credits, term picker, courses">
+</p>
+<p>
+  <img src="docs/screenshots/neptun-exams.png" width="200" alt="Vizsgák: upcoming and earlier exams with results">
+  <img src="docs/screenshots/neptun-timetable.png" width="200" alt="Órarend: a university day's classes">
+</p>
+
 ## What's in it
 
 - KRÉTA login (official OAuth page, with automatic token refresh)

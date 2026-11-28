@@ -47,7 +47,7 @@ struct UniversityGradesView: View {
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if store.isHidden(c) {
+                            if c.number != nil, store.isHidden(c) {  // no result yet is no surprise: "–"
                                 GradeBadge(text: "?", grade: nil)
                             } else {
                                 GradeBadge(text: c.number.map(String.init) ?? "–", grade: c.number)
