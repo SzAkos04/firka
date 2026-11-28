@@ -265,3 +265,28 @@ extension Global {
         }
     }
 }
+
+@Suite("Neptun: taking over the session after logging in on Neptun's page")
+struct NeptunLoginTests {
+    let uni = Institution(name: "Teszt", web: URL(string: "https://uni.neptun.test/hallgatoi/")!, api: URL(string: "https://uni.neptun.test/hallgatoi/api/")!)
+
+    func cookie(_ name: String, _ value: String, domain: String) -> HTTPCookie {
+        HTTPCookie(properties: [.name: name, .value: value, .domain: domain, .path: "/"])!
+    }
+
+    @Test("the page's access_token and this university's cookies make the session; other sites' cookies stay out")
+    func takeOver() throws {
+        let token = neptunJWT("a", expires: Date().addingTimeInterval(600))
+        let s = try #require(NeptunLogin.session(storage: ["access_token": token, "translocoLang": "hu"],
+                                                 cookies: [cookie("rt", "x", domain: "uni.neptun.test"), cookie("other", "y", domain: "example.com"),
+                                                           cookie("lb", "z", domain: ".neptun.test")],
+                                                 institution: uni))
+        #expect(s.accessToken == token && s.cookies == ["rt": "x", "lb": "z"] && s.institution == uni)
+    }
+
+    @Test("not logged in yet (no token on the page): no session")
+    func notYet() {
+        #expect(NeptunLogin.session(storage: [:], cookies: [], institution: uni) == nil)
+        #expect(NeptunLogin.session(storage: ["access_token": ""], cookies: [], institution: uni) == nil)
+    }
+}

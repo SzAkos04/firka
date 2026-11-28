@@ -239,6 +239,21 @@ extension Global {
             #expect(Token.load()?.username == "masik" && s.loggedIn && !s.needsReauth)
         }
 
+        @Test("a university login keeps the Neptun session (not a KRÉTA token) and syncs through Neptun; logout forgets both")
+        func universityLogin() async throws {
+            let uni = Institution(name: "Teszt", web: URL(string: "https://uni.neptun.test/hallgatoi/")!, api: URL(string: "https://uni.neptun.test/hallgatoi/api/")!)
+            let session = NeptunSession(institution: uni, accessToken: neptunJWT("a", expires: Date().addingTimeInterval(600)), cookies: ["rt": "x"])
+            defer { NeptunSession.delete() }
+            let s = store()
+            Stub.start(FakeNeptun().reply)
+            await s.signedIn(neptun: session)
+            #expect(s.provider is NeptunProvider && Token.load() == nil && NeptunSession.load() == session)
+            #expect(s.data.university && s.data.schoolName == "Teszt" && s.data.courses.count == 3)
+            #expect(AppStore.savedProvider() is NeptunProvider, "the next launch and the background task find it")
+            s.logout()
+            #expect(NeptunSession.load() == nil && AppStore.savedProvider() == nil)
+        }
+
         @Test("the store works with any school system's provider: sync, other weeks, message texts")
         func anyProvider() async throws {
             let p = FakeProvider()

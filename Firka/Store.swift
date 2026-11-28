@@ -14,6 +14,8 @@ struct Snapshot: Codable {
     var tests: [AnnouncedTest] = []
     /// As the lists give them (teacher messages shortened); `messages` adds the full texts downloaded since.
     var messageList: [Message] = []
+    /// From a university's Neptun: Grades shows credits and averages, the absences tab shows exams.
+    var university = false
     /// University only: the current term's courses (a grade where there is a result) and the terms.
     var courses: [Grade] = []
     var semesters: [Semester] = []
@@ -167,6 +169,7 @@ final class AppStore {
         if env["FIRKA_DEMO"] != nil {
             UIView.setAnimationsEnabled(false)  // UI tests: no waiting for every push and tab switch to finish animating
             Token.delete()
+            NeptunSession.delete()
             token = nil
             HiddenLessons.shared.rules = []
             Renames.shared.subjects = [:]
@@ -175,8 +178,9 @@ final class AppStore {
             UserDefaults.standard.removeObject(forKey: Pref.timetableMonth)
         }
         #endif
-        provider = token.map(KretaProvider.init(token:))
-        loggedIn = token != nil || UserDefaults.standard.bool(forKey: Pref.demo)
+        let saved: SchoolProvider? = token.map(KretaProvider.init(token:)) ?? NeptunSession.load().map(NeptunProvider.init(session:))
+        provider = saved
+        loggedIn = saved != nil || UserDefaults.standard.bool(forKey: Pref.demo)
         seedSeenGrades()
         #if DEBUG
         if env["FIRKA_PROBE"] != nil, let p = provider as? KretaProvider { Task { await DebugProbe.run(p.client) } }
@@ -214,6 +218,7 @@ final class AppStore {
             clearAccountData()  // another account (or none before): don't mix data or "seen" grades
         }
         token.save()
+        NeptunSession.delete()  // one account at a time
         UserDefaults.standard.set(false, forKey: Pref.demo)
         provider = KretaProvider(token: token)
         needsReauth = false
@@ -228,8 +233,28 @@ final class AppStore {
         Task { await ServerPush.sync() }  // the server applies the hidden lessons and names from its next poll
     }
 
+    /// After logging in on a university's Neptun page (NeptunLoginSheet): keep the session and sync.
+    func signedIn(neptun session: NeptunSession) async {
+        if Token.load() != nil || NeptunSession.load()?.institution != session.institution {
+            clearAccountData()  // another account (or none before): don't mix data or "seen" grades
+        }
+        Token.delete()  // one account at a time
+        session.save()
+        UserDefaults.standard.set(false, forKey: Pref.demo)
+        provider = NeptunProvider(session: session)
+        needsReauth = false
+        loggedIn = true
+        await refresh()
+    }
+
+    /// The school system logged in on this phone (KRÉTA token or Neptun session in the Keychain).
+    nonisolated static func savedProvider() -> SchoolProvider? {
+        Token.load().map(KretaProvider.init(token:)) ?? NeptunSession.load().map(NeptunProvider.init(session:))
+    }
+
     func logout() {
         Token.delete()
+        NeptunSession.delete()
         BGTaskScheduler.shared.cancelAllTaskRequests()
         UserDefaults.standard.set(false, forKey: Pref.demo)
         provider = nil
@@ -462,9 +487,9 @@ enum Background {
     /// One background refresh (internal for the tests): download, alert, save for the app and the widget.
     static func run() async -> Bool {
         UserDefaults.standard.set(Date(), forKey: Pref.lastBackgroundRun)  // shown in Settings: does iOS run us at all?
-        guard let token = Token.load(), let old = Snapshot.load() else { return false }
+        guard let provider = AppStore.savedProvider(), let old = Snapshot.load() else { return false }
         do {
-            var new = try await KretaProvider(token: token).fetch(old: old)
+            var new = try await provider.fetch(old: old)
             Notifier.post(old: old, new: new)
             new.keepBodies(from: Snapshot.load())  // the app may have saved a message text meanwhile
             new.save()

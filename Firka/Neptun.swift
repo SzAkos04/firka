@@ -180,6 +180,7 @@ final class NeptunProvider: SchoolProvider {
         s.semesters = semesters
         s.exams = old?.exams ?? []
         s.messageBodies = old?.messageBodies
+        s.university = true
         s.updated = Date()
         return s
     }
@@ -294,5 +295,20 @@ extension Lesson {
         let title = e.title ?? e.courseCode ?? "Óra"
         self.init(id: e.classInstanceId ?? "\(start.timeIntervalSince1970)-\(title)", start: start, end: end,
                   subject: Subject(id: e.courseCode ?? title, raw: title), name: title, room: e.location ?? e.rooms)
+    }
+}
+
+/// Taking the session over from Neptun's own page after the user logged in there (NeptunLoginSheet).
+enum NeptunLogin {
+    /// `storage`: the page's sessionStorage (BME's client keeps `access_token` there); `cookies`: the web view's.
+    /// Only the university's own cookies are kept.
+    static func session(storage: [String: String], cookies: [HTTPCookie], institution: Institution) -> NeptunSession? {
+        guard let token = storage["access_token"], !token.isEmpty, let host = institution.api.host else { return nil }
+        let own = cookies.filter { c in
+            let d = c.domain.hasPrefix(".") ? String(c.domain.dropFirst()) : c.domain
+            return host == d || host.hasSuffix("." + d)
+        }
+        return NeptunSession(institution: institution, accessToken: token,
+                             cookies: Dictionary(own.map { ($0.name, $0.value) }) { $1 })
     }
 }
