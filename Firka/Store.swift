@@ -14,6 +14,10 @@ struct Snapshot: Codable {
     var tests: [AnnouncedTest] = []
     /// As the lists give them (teacher messages shortened); `messages` adds the full texts downloaded since.
     var messageList: [Message] = []
+    /// University only: the current term's courses (a grade where there is a result) and the terms.
+    var courses: [Grade] = []
+    var semesters: [Semester] = []
+    var exams: [Exam] = []
     /// Message sources (id prefixes) that have loaded at least once: a source's first list is a baseline, not news.
     var messageSources: Set<String> = []
     var classAverages: [String: Double]?  // subject id -> class average

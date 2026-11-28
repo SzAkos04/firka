@@ -143,3 +143,156 @@ struct NeptunTerm: Decodable, Hashable {
     var value: String
     var text: String
 }
+
+/// Neptun as a school system for the store.
+final class NeptunProvider: SchoolProvider {
+    let client: NeptunClient
+    init(session: NeptunSession) { client = NeptunClient(session: session, saved: { $0.save() }) }
+
+    /// The terms must load; the current term's courses and results, the calendar and the messages each keep
+    /// what they had when they fail.
+    func fetch(old: Snapshot?) async throws -> Snapshot {
+        let terms: NeptunList<NeptunTerm> = try await client.get("TakenSubjects/Terms")
+        let real = terms.items.filter { $0.value != "0" && !$0.text.hasPrefix("0") }  // "0. félév": a placeholder [ref]
+        let semesters = real.enumerated().map { Semester(id: $1.value, name: $1.text, current: $0 == 0) }
+        let monday = Date().startOfWeek
+        async let lessons = Snapshot.soft("Calendar", nil) { [self] in try await week(monday) + week(monday.adding(days: 7)) }
+        async let messages = Snapshot.soft("Messages", nil) { [client] in
+            let list: NeptunList<NeptunMessage> = try await client.get("Message/GetReceivedMessages",
+                query: [.init(name: "firstRow", value: "0"), .init(name: "lastRow", value: "50"), .init(name: "filterType", value: "0")])
+            return list.items.map(Message.init(neptun:))
+        }
+        var courses = old?.courses ?? []
+        if let term = real.first { courses = try await self.courses(term: term, old: old) }
+        let fetchedMessages: [Message]? = try await messages
+        let fetchedLessons: [Lesson]? = try await lessons
+        let school = await client.session.institution.name
+
+        let (msgs, sources) = Message.merge(["m": fetchedMessages], old: old)
+        var s = Snapshot()
+        s.studentName = old?.studentName ?? ""
+        s.schoolName = school
+        s.grades = courses.filter { $0.number != nil }
+        s.courses = courses
+        s.lessons = fetchedLessons ?? old?.lessons ?? []
+        s.messageList = msgs
+        s.messageSources = sources
+        s.semesters = semesters
+        s.exams = old?.exams ?? []
+        s.messageBodies = old?.messageBodies
+        s.updated = Date()
+        return s
+    }
+
+    /// The term's courses, each with its result (one request per subject, as Neptun's own pages do).
+    private func courses(term: NeptunTerm, old: Snapshot?) async throws -> [Grade] {
+        let list: NeptunList<NeptunTakenSubject> = try await client.get("TakenSubjects", query: [
+            .init(name: "request.termId", value: term.value), .init(name: "sortAndPage.firstRow", value: "0"),
+            .init(name: "sortAndPage.lastRow", value: "1000"),
+        ])
+        // Neptun gives no date for a result: the day it first shows up here
+        let seen = Dictionary(((old?.courses ?? []) + (old?.grades ?? [])).map { ($0.id, $0.date) }) { a, _ in a }
+        let now = Date()
+        let results = await withTaskGroup(of: (Int, NeptunSubjectDetails.Result?).self) { group in
+            for (i, s) in list.items.enumerated() {
+                group.addTask { [client] in
+                    let d: NeptunSubjectDetails? = try? await client.get("SubjectCourse/GetSubjectDetails", query: [.init(name: "subjectId", value: s.subjectId)])
+                    return (i, d?.subjectResult)
+                }
+            }
+            var out = [Int: NeptunSubjectDetails.Result?]()
+            for await (i, r) in group { out[i] = r }
+            return out
+        }
+        return list.items.enumerated().map { i, s in
+            let r = results[i] ?? nil
+            let id = "\(term.value)/\(s.subjectId)"
+            let date = seen[id] ?? now
+            return Grade(id: id, date: date, recorded: date, subject: Subject(id: s.subjectId, raw: s.subjectName), kind: .other,
+                         value: .grade, number: r?.resultValue, text: r?.resultName, credit: s.subjectCredit, mode: s.subjectCode,
+                         kindText: term.text)
+        }
+    }
+
+    /// Classes of a week from the calendar (UNVERIFIED field names; events without times are left out).
+    func week(_ start: Date) async throws -> [Lesson] {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = Calendar.hu.timeZone
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.000"
+        let list: NeptunList<NeptunCalendarEvent> = try await client.get("Calendar/GetCalendarEvents", query: [
+            .init(name: "startDate", value: f.string(from: start)), .init(name: "endDate", value: f.string(from: start.adding(days: 7))),
+            .init(name: "displayClasses", value: "true"), .init(name: "displayExams", value: "false"),
+            .init(name: "displayPeriods", value: "false"), .init(name: "displayTasks", value: "false"),
+            .init(name: "displayOnlineMeetings", value: "false"), .init(name: "displayOtherEvents", value: "false"),
+        ])
+        // only the week's own days, like KRÉTA's (a server that answers more doesn't double them)
+        return list.items.compactMap(Lesson.init(neptun:)).filter { $0.start >= start && $0.start < start.adding(days: 7) }
+    }
+    func fullMessage(_ id: String) async throws -> String? { nil }
+    func download(_ a: Attachment) async throws -> Data { throw KretaError.http(404) }
+}
+
+/// A list answer: an array, or (some endpoints) an object holding one; items that don't decode are skipped.
+struct NeptunList<T: Decodable>: Decodable, @unchecked Sendable {  // decoded once, then only read
+    var items: [T]
+
+    struct AnyKey: CodingKey {
+        var stringValue: String; var intValue: Int?
+        init(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { return nil }
+    }
+
+    init(from d: Decoder) throws {
+        if let list = try? d.singleValueContainer().decode([Lossy<T>].self) { items = list.compactMap(\.value); return }
+        let c = try d.container(keyedBy: AnyKey.self)
+        for k in c.allKeys { if let list = try? c.decode([Lossy<T>].self, forKey: k) { items = list.compactMap(\.value); return } }
+        items = []
+    }
+}
+
+struct NeptunTakenSubject: Decodable {
+    var subjectId: String
+    var subjectCode: String?
+    var subjectName: String
+    var subjectCredit: Int?
+}
+
+struct NeptunSubjectDetails: Decodable {
+    struct Result: Decodable { var resultValue: Int?; var resultName: String?; var passed: Bool? }
+    var subjectResult: Result?
+}
+
+struct NeptunMessage: Decodable {
+    var messageId: String
+    var subject: String?
+    var sendDate: Date?
+    var isNew: Bool?
+}
+
+/// UNVERIFIED beyond `classInstanceId`, `courseCode`, `courseType`, `rooms` ([ref]): the times and title are
+/// candidates read from BME's bundle.
+struct NeptunCalendarEvent: Decodable {
+    var classInstanceId: String?
+    var title: String?
+    var start: Date?
+    var end: Date?
+    var location: String?
+    var rooms: String?
+    var courseCode: String?
+}
+
+extension Message {
+    init(neptun m: NeptunMessage) {
+        self.init(id: "m" + m.messageId, title: m.subject ?? "Üzenet", date: m.sendDate ?? .distantPast, html: "", unread: m.isNew == true)
+    }
+}
+
+extension Lesson {
+    init?(neptun e: NeptunCalendarEvent) {
+        guard let start = e.start, let end = e.end else { return nil }
+        let title = e.title ?? e.courseCode ?? "Óra"
+        self.init(id: e.classInstanceId ?? "\(start.timeIntervalSince1970)-\(title)", start: start, end: end,
+                  subject: Subject(id: e.courseCode ?? title, raw: title), name: title, room: e.location ?? e.rooms)
+    }
+}

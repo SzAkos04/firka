@@ -170,3 +170,98 @@ extension Global {
         }
     }
 }
+
+/// A Neptun of the tests' own, with the shapes the references document (UNVERIFIED at BME).
+struct FakeNeptun {
+    var terms = #"[{"value":"0","text":"0. félév"},{"value":"t2","text":"2026/27/1"},{"value":"t1","text":"2025/26/2"}]"#
+    var subjects = #"[{"subjectId":"s1","subjectCode":"BMEVISZAA01","subjectName":"Analízis 1","subjectCredit":6,"termId":"t2"},{"subjectId":"s2","subjectCode":"BMEVIIIAA02","subjectName":"Programozás alapjai","subjectCredit":5,"termId":"t2"},{"subjectId":"s3","subjectCode":"BMETE90AX00","subjectName":"Fizika 1","subjectCredit":4,"termId":"t2"}]"#
+    var results = ["s1": #"{"resultValue":4,"resultName":"Jó","passed":true}"#, "s2": #"{"resultValue":1,"resultName":"Elégtelen","passed":false}"#]
+    var messages = #"[{"messageId":"1","subject":"Vizsgajelentkezés","sendDate":"2026-12-01T10:00:00","isNew":true,"senderUserId":"u9"}]"#
+    /// This week's Tuesday 8:15–10:00, whatever the week (Neptun's local time, no zone).
+    var calendar: String = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = Calendar.hu.timeZone
+        f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+        let tue = Date().startOfWeek.adding(days: 1)
+        let start = f.string(from: tue.addingTimeInterval(8 * 3600 + 15 * 60)), end = f.string(from: tue.addingTimeInterval(10 * 3600))
+        return #"[{"classInstanceId":"c1","title":"Analízis 1 (EA)","start":"\#(start)","end":"\#(end)","location":"K.287","courseType":"Elmélet"},{"title":"no times"}]"#
+    }()
+    var fail: Set<String> = []
+
+    func reply(_ r: URLRequest) -> Stub.Reply {
+        let path = r.url!.path.replacingOccurrences(of: "/hallgatoi/api/", with: "")
+        let wrap = { (s: String) in Stub.Reply(body: #"{"data":\#(s)}"#) }
+        if fail.contains(path) { return .init(status: 500, body: "") }
+        switch path {
+        case "TakenSubjects/Terms": return wrap(terms)
+        case "TakenSubjects": return wrap(subjects)
+        case "SubjectCourse/GetSubjectDetails":
+            let id = URLComponents(url: r.url!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "subjectId" }?.value ?? ""
+            return wrap(#"{"subjectResult":\#(results[id] ?? "null")}"#)
+        case "Message/GetReceivedMessages": return wrap(messages)
+        case "Calendar/GetCalendarEvents": return wrap(calendar)
+        default: return .init(status: 404, body: "")
+        }
+    }
+}
+
+extension Global {
+    @Suite("Neptun: from its answers to the app's models (shapes UNVERIFIED at BME)", .serialized)
+    final class NeptunProviderTests {
+        let uni = Institution(name: "Teszt Egyetem", web: URL(string: "https://uni.neptun.test/hallgatoi/")!,
+                              api: URL(string: "https://uni.neptun.test/hallgatoi/api/")!)
+        deinit { Stub.stop() }
+
+        func provider(_ fake: FakeNeptun = FakeNeptun()) -> NeptunProvider {
+            Stub.start(fake.reply)
+            return NeptunProvider(session: NeptunSession(institution: uni, accessToken: neptunJWT("a", expires: Date().addingTimeInterval(600)), cookies: [:]))
+        }
+
+        @Test("semesters (without the 0. félév placeholder), the current one's courses with credits, grades where there is a result")
+        func coursesAndGrades() async throws {
+            let s = try await provider().fetch(old: nil)
+            #expect(s.semesters.map(\.id) == ["t2", "t1"] && s.semesters.first?.current == true)
+            #expect(s.courses.map(\.subject.raw) == ["Analízis 1", "Programozás alapjai", "Fizika 1"])
+            #expect(s.courses.map(\.credit) == [6, 5, 4])
+            #expect(s.grades.map(\.id) == ["t2/s1", "t2/s2"], "Fizika has no result yet")
+            #expect(s.grades[0].number == 4 && s.grades[0].text == "Jó" && s.grades[0].credit == 6 && s.grades[0].weight == nil)
+            #expect(CreditAverages(s.courses).taken == 15 && CreditAverages(s.courses).completed == 6)
+            #expect(s.schoolName == "Teszt Egyetem")
+        }
+
+        @Test("a grade keeps the date it was first seen (Neptun gives none), so surprises and the chart stay in order")
+        func gradeDates() async throws {
+            var old = Snapshot()
+            let then = Date(timeIntervalSince1970: 1_700_000_000)  // 2023: before any fetch here
+            old.grades = [Grade(id: "t2/s1", date: then, recorded: then, subject: Subject(id: "s1", raw: "Analízis 1"), kind: .other, value: .grade, number: 4)]
+            let s = try await provider().fetch(old: old)
+            #expect(s.grades.first { $0.id == "t2/s1" }?.date == then)
+            #expect(s.grades.first { $0.id == "t2/s2" }!.date > then)
+        }
+
+        @Test("messages (source m) and classes from the calendar; an event without times is left out")
+        func messagesAndCalendar() async throws {
+            let s = try await provider().fetch(old: nil)
+            #expect(s.messageList.map(\.id) == ["m1"] && s.messageList[0].title == "Vizsgajelentkezés" && s.messageList[0].unread)
+            #expect(s.messageSources == ["m"])
+            #expect(s.lessons.map(\.id) == ["c1"], "once, though the fake answers every week with it")
+            #expect(s.lessons[0].name == "Analízis 1 (EA)" && s.lessons[0].room == "K.287")
+            #expect(s.lessons[0].end.timeIntervalSince(s.lessons[0].start) == 105 * 60)
+        }
+
+        @Test("the calendar or the messages failing keep what was there; the terms failing fails the sync")
+        func soft() async throws {
+            var fake = FakeNeptun()
+            fake.fail = ["Calendar/GetCalendarEvents", "Message/GetReceivedMessages"]
+            var old = Snapshot()
+            old.lessons = [lesson("kept", day: .now, from: 600)]
+            old.messageList = [Message(id: "m0", title: "régi", date: .now, html: "")]
+            old.messageSources = ["m"]
+            let s = try await provider(fake).fetch(old: old)
+            #expect(s.lessons.map(\.id) == ["kept"] && s.messageList.map(\.id) == ["m0"])
+            fake.fail = ["TakenSubjects/Terms"]
+            await #expect(throws: (any Error).self) { try await self.provider(fake).fetch(old: old) }
+        }
+    }
+}
