@@ -164,6 +164,8 @@ final class AppStore {
         //   FIRKA_DEMO=1           start over in demo mode (UI tests)
         //   FIRKA_DEMO=noClassAverages  the same without class averages (a school that hides them)
         //   FIRKA_DEMO=reportCard       the same with half-year grades (the report card)
+        //   FIRKA_DEMO=neptun           a university's data instead (credits, exams)
+        //   FIRKA_DEMO=loggedOut        no demo: the login screen, everything cleared
         let env = ProcessInfo.processInfo.environment
         if env["FIRKA_FORCE_REFRESH"] != nil { token?.expiry = .distantPast }
         if env["FIRKA_DEMO"] != nil {
@@ -171,6 +173,7 @@ final class AppStore {
             Token.delete()
             NeptunSession.delete()
             token = nil
+            if env["FIRKA_DEMO"] == "loggedOut" { UserDefaults.standard.set(false, forKey: Pref.demo); Snapshot.delete() }
             HiddenLessons.shared.rules = []
             Renames.shared.subjects = [:]
             Renames.shared.teachers = [:]
@@ -184,7 +187,7 @@ final class AppStore {
         seedSeenGrades()
         #if DEBUG
         if env["FIRKA_PROBE"] != nil, let p = provider as? KretaProvider { Task { await DebugProbe.run(p.client) } }
-        if env["FIRKA_DEMO"] != nil { startDemo() }
+        if let demo = env["FIRKA_DEMO"], demo != "loggedOut" { startDemo(university: demo == "neptun") }
         if env["FIRKA_DEMO"] == "noClassAverages" { data.classAverages = nil; data.save() }
         if env["FIRKA_DEMO"] == "reportCard" {
             let half = data.grades.prefix(3).map { g in
@@ -246,6 +249,21 @@ final class AppStore {
         loggedIn = true
         await refresh()
     }
+
+    /// A university term's courses that isn't the current one (downloaded once per launch).
+    func courses(semester: Semester) async -> [Grade] {
+        if let c = otherTerms[semester.id] { return c }
+        guard let neptun = provider as? NeptunProvider else { return [] }
+        do {
+            let c = try await neptun.courses(term: NeptunTerm(value: semester.id, text: semester.name), old: data)
+            otherTerms[semester.id] = c
+            return c
+        } catch {
+            log.error("term \(semester.id, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            return []
+        }
+    }
+    private var otherTerms: [String: [Grade]] = [:]
 
     /// The school system logged in on this phone (KRÉTA token or Neptun session in the Keychain).
     nonisolated static func savedProvider() -> SchoolProvider? {
@@ -334,9 +352,9 @@ final class AppStore {
     }
 
     #if DEBUG
-    func startDemo() {
+    func startDemo(university: Bool = false) {
         UserDefaults.standard.set(true, forKey: Pref.demo)
-        data = .demo
+        data = university ? .universityDemo : .demo
         data.save()
         // leave the 3 newest grades as surprises
         seenGrades = Set(data.grades.sorted { $0.date < $1.date }.dropLast(3).map(\.id))

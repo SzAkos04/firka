@@ -62,6 +62,24 @@ final class FirkaUITests: XCTestCase {
             ("Egyebek", { self.tab("Egyebek") }, {}),
             ("Beállítások", { self.tab("Egyebek"); self.app.buttons["Beállítások"].tap() }, { self.tab("Egyebek") }),
         ]
+        try audit(screens)
+    }
+
+    /// The university screens (FIRKA_DEMO=neptun), light and dark.
+    func testUniversityContrastInLightAndDarkMode() throws {
+        addTeardownBlock { XCUIDevice.shared.appearance = .light }
+        relaunch(["FIRKA_DEMO": "neptun"])
+        try audit([
+            ("Kezdőlap", { self.tab("Kezdőlap") }, {}),
+            ("Órarend", { self.tab("Órarend") }, {}),
+            ("Jegyek", { self.tab("Jegyek") }, {}),
+            ("Vizsgák", { self.tab("Vizsgák") }, {}),
+            ("Egyebek", { self.tab("Egyebek") }, {}),
+        ])
+    }
+
+    /// Low-contrast text on each screen, in light and dark mode: name, how to get there, how to leave it.
+    private func audit(_ screens: [(String, () -> Void, () -> Void)]) throws {
         var found: [String] = []
         for mode in [XCUIDevice.Appearance.light, .dark] {
             XCUIDevice.shared.appearance = mode
@@ -383,6 +401,35 @@ final class FirkaUITests: XCTestCase {
         app.swipeUp()
         app.buttons["Kijelentkezés"].firstMatch.tap()
         app.alerts.buttons["Kijelentkezés"].tap()
-        XCTAssertTrue(shows(app.buttons["Bejelentkezés"]))
+        XCTAssertTrue(shows(app.buttons["loginKreta"]))
+    }
+
+    /// Logged out: KRÉTA or a university; the university list finds BME without accents, and an address can be typed.
+    func testLoginChoosesKretaOrUniversity() {
+        relaunch(["FIRKA_DEMO": "loggedOut"])
+        XCTAssertTrue(shows(app.buttons["loginKreta"]))
+        app.buttons["loginNeptun"].tap()
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(shows(search))
+        search.tap()
+        search.typeText("muszaki")
+        XCTAssertTrue(shows(app.buttons["Budapesti Műszaki és Gazdaságtudományi Egyetem"]))
+        XCTAssertFalse(app.buttons["Szegedi Tudományegyetem"].exists, "the search narrows the list")
+        XCTAssertTrue(app.buttons["neptunAddress"].exists, "a university not on the list: type its Neptun address")
+    }
+
+    /// A university's data (FIRKA_DEMO=neptun): credit averages and courses on Grades, exams instead of absences.
+    func testUniversityGradesAndExams() {
+        relaunch(["FIRKA_DEMO": "neptun"])
+        tab("Jegyek")
+        XCTAssertTrue(shows(app.staticTexts["Kreditindex"]))
+        XCTAssertTrue(app.staticTexts["Korrigált kreditindex"].exists && app.staticTexts["Súlyozott átlag"].exists)
+        XCTAssertTrue(shows(app.staticTexts["Analízis 1"]))
+        XCTAssertFalse(app.tabBars.buttons["Hiányzások"].exists)
+        tab("Vizsgák")
+        XCTAssertTrue(shows(app.buttons.matching(identifier: "examRow").firstMatch))
+        tab("Egyebek")
+        XCTAssertTrue(shows(app.buttons["Üzenetek, feljegyzések"]))
+        XCTAssertFalse(app.buttons["Házi feladatok"].exists, "universities have none in Neptun")
     }
 }

@@ -14,8 +14,10 @@ struct MoreView: View {
                     }
                 }
                 Section {
-                    NavigationLink(value: Page.homework) { Label("Házi feladatok", systemImage: "house") }
-                    NavigationLink(value: Page.tests) { Label("Számonkérések", systemImage: "exclamationmark.bubble") }
+                    if !store.data.university {  // Neptun has no homework or announced tests
+                        NavigationLink(value: Page.homework) { Label("Házi feladatok", systemImage: "house") }
+                        NavigationLink(value: Page.tests) { Label("Számonkérések", systemImage: "exclamationmark.bubble") }
+                    }
                     NavigationLink(value: Page.messages) { Label("Üzenetek, feljegyzések", systemImage: "envelope") }
                 }
                 Section {

@@ -186,7 +186,7 @@ final class NeptunProvider: SchoolProvider {
     }
 
     /// The term's courses, each with its result (one request per subject, as Neptun's own pages do).
-    private func courses(term: NeptunTerm, old: Snapshot?) async throws -> [Grade] {
+    func courses(term: NeptunTerm, old: Snapshot?) async throws -> [Grade] {
         let list: NeptunList<NeptunTakenSubject> = try await client.get("TakenSubjects", query: [
             .init(name: "request.termId", value: term.value), .init(name: "sortAndPage.firstRow", value: "0"),
             .init(name: "sortAndPage.lastRow", value: "1000"),

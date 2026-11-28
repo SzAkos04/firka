@@ -64,5 +64,45 @@ extension Snapshot {
             classAverages: Dictionary(uniqueKeysWithValues: zip(subjects.dropLast().map(\.id), [3.92, 4.21, 3.85, 3.6, 3.4, 4.05, 3.75])),
             updated: now)
     }
+
+    /// A made-up university term in Neptun's shape (FIRKA_DEMO=neptun): courses with credits, classes, exams.
+    static var universityDemo: Snapshot {
+        let now = Date(), week = now.startOfWeek
+        let courses: [(String, String, Int, Int?)] = [("Analízis 1", "BMETE90AX00", 6, 4), ("A programozás alapjai 1", "BMEVIEEAA00", 7, 5),
+                                                       ("Fizika 1", "BMETE13AX01", 4, nil), ("Bevezetés a számításelméletbe 1", "BMEVISZAA00", 4, 2),
+                                                       ("Digitális technika 1", "BMEVIMIAA00", 5, nil), ("Testnevelés", "BMEGT70BS1B", 0, nil)]
+        let grades = courses.enumerated().map { i, c in
+            Grade(id: "t2/s\(i)", date: now.adding(days: -10 + i), recorded: now.adding(days: -10 + i), subject: Subject(id: "s\(i)", raw: c.0),
+                  kind: .other, value: .grade, number: c.3, text: c.3.map { ["", "Elégtelen", "Elégséges", "Közepes", "Jó", "Jeles"][$0] },
+                  credit: c.2, mode: c.1, kindText: "2026/27/1")
+        }
+        var lessons: [Lesson] = []
+        for d in 0..<14 where d % 7 < 5 {
+            for (k, c) in courses.prefix(4).enumerated() where (d + k) % 2 == 0 {
+                let start = Calendar.hu.date(bySettingHour: 8 + 2 * k, minute: 15, second: 0, of: week.adding(days: d))!
+                lessons.append(Lesson(id: "c\(d)-\(k)", start: start, end: start.addingTimeInterval(105 * 60),
+                                      subject: Subject(id: "s\(k)", raw: c.0), name: c.0, room: ["K.287", "IB.025", "F29", "QBF13"][k]))
+            }
+        }
+        let exam = { (i: Int, days: Int, result: Int?) in
+            let start = Calendar.hu.date(bySettingHour: 9, minute: 0, second: 0, of: now.startOfDay.adding(days: days))!
+            return Exam(id: "e\(i)", subject: Subject(id: "s\(i)", raw: courses[i].0), start: start, end: start.addingTimeInterval(3 * 3600),
+                        room: "K.287", kind: "Írásbeli vizsga", registered: true, result: result, resultText: result.map { ["", "Elégtelen", "Elégséges", "Közepes", "Jó", "Jeles"][$0] })
+        }
+        var s = Snapshot()
+        s.studentName = "Teszt Elek"
+        s.schoolName = "Demó Egyetem"
+        s.university = true
+        s.courses = grades
+        s.grades = grades.filter { $0.number != nil }
+        s.lessons = lessons
+        s.semesters = [Semester(id: "t2", name: "2026/27/1", current: true), Semester(id: "t1", name: "2025/26/2", current: false)]
+        s.exams = [exam(0, -6, 4), exam(2, 12, nil), exam(4, 19, nil)]
+        s.messageList = [Message(id: "m1", title: "Vizsgajelentkezés megnyílt", author: "Tanulmányi Osztály", date: now.adding(days: -1),
+                                 html: "<p>A vizsgaidőszak jelentkezése december 1-jén nyílik.</p>", unread: true)]
+        s.messageSources = ["m"]
+        s.updated = now
+        return s
+    }
 }
 #endif

@@ -5,6 +5,7 @@ struct LoginScreen: View {
     var reauth = false
     @Environment(AppStore.self) private var store
     @State private var showWeb = false
+    @State private var showUniversity = false
     @State private var error: String?
 
     var body: some View {
@@ -15,8 +16,8 @@ struct LoginScreen: View {
                 .frame(width: 120, height: 120)
                 .clipShape(RoundedRectangle(cornerRadius: 28))
             Text("Firka").font(.largeTitle.bold())
-            Text(reauth ? "A bejelentkezésed lejárt. Jelentkezz be újra a KRÉTA fiókoddal."
-                        : "Nem hivatalos KRÉTA napló. Jelentkezz be a KRÉTA fiókoddal.")
+            Text(reauth ? "A bejelentkezésed lejárt. Jelentkezz be újra."
+                        : "Nem hivatalos KRÉTA- és Neptun-kliens. Jelentkezz be az iskolád KRÉTA vagy az egyetemed Neptun fiókjával.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
@@ -25,11 +26,17 @@ struct LoginScreen: View {
             }
             Spacer()
             Button { showWeb = true } label: {
-                Text("Bejelentkezés").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
+                Text("KRÉTA (középiskola)").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
                     .foregroundStyle(.white)
             }
             .buttonStyle(.borderedProminent)
             .tint(.firkaLogo)  // exactly the logo's background
+            .accessibilityIdentifier("loginKreta")
+            Button { showUniversity = true } label: {
+                Text("Egyetem (Neptun)").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 6)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("loginNeptun")
             if reauth {
                 Button("Kijelentkezés", role: .destructive) { store.needsReauth = false; store.logout() }
             }
@@ -38,6 +45,7 @@ struct LoginScreen: View {
             #endif
         }
         .padding(24)
+        .sheet(isPresented: $showUniversity) { UniversityPicker { showUniversity = false } }
         .sheet(isPresented: $showWeb) {
             LoginSheet { result in
                 showWeb = false
