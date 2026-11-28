@@ -6,6 +6,22 @@ A native SwiftUI rewrite of [Firka](https://github.com/QwIT-Development/firka), 
 
 **License:** CC BY-NC-SA 4.0, the same as the original (see `LICENSE.txt`). You can't sell it, and you have to share changes under the same license with credit to QwIT Development. This project is not affiliated with eKRÉTA Informatikai Zrt.
 
+## Screenshots
+
+Demo data (debug builds: Demó mód on the login screen, or `FIRKA_DEMO=1`), iPhone 11 Pro Max.
+
+<p>
+  <img src="docs/screenshots/home.png" width="200" alt="Kezdőlap: surprise grades, the next lesson, today's lessons">
+  <img src="docs/screenshots/timetable.png" width="200" alt="Órarend: a week's day">
+  <img src="docs/screenshots/grades.png" width="200" alt="Jegyek: overall average, class average, distribution, chart">
+  <img src="docs/screenshots/subject.png" width="200" alt="A subject: average, expected grade, chart, what-if calculator">
+</p>
+<p>
+  <img src="docs/screenshots/absences.png" width="200" alt="Hiányzások: counters, filter, absences by day">
+  <img src="docs/screenshots/messages.png" width="200" alt="Üzenetek: notice board, teacher messages (unread marked), notes">
+  <img src="docs/screenshots/home-dark.png" width="200" alt="Kezdőlap in dark mode">
+</p>
+
 ## What's in it
 
 - KRÉTA login (official OAuth page, with automatic token refresh)
